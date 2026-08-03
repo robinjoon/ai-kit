@@ -1,0 +1,34 @@
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+*.log
+.tmp/
+tmp/
+.ctx/
+
+# JavaScript and TypeScript
+node_modules/
+dist/
+build/
+coverage/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Rust
+target/
