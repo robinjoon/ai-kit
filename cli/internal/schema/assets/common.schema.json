@@ -1,0 +1,2071 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ctx:schema:v1:common",
+  "title": "ctx v1 common definitions",
+  "description": "Provider-neutral definitions shared by ctx v1 records.",
+  "$defs": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "workStatus": {
+      "enum": [
+        "active",
+        "blocked",
+        "completed",
+        "abandoned"
+      ]
+    },
+    "ulid": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "gitSha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "gitSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitObjectId": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/gitSha1"
+        },
+        {
+          "$ref": "#/$defs/gitSha256"
+        }
+      ]
+    },
+    "repoId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "referenceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "openIdentifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._/-][a-z0-9][a-z0-9-]*)*$",
+      "maxLength": 255
+    },
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?:\\.|(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^/\\u0000]+(?:/[^/\\u0000]+)*)$"
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+      },
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "actor_type",
+        "extensions"
+      ],
+      "properties": {
+        "actor_type": {
+          "enum": [
+            "agent",
+            "human",
+            "cli",
+            "hook",
+            "import"
+          ]
+        },
+        "system": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "adapter": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "actor_type"
+            ],
+            "properties": {
+              "actor_type": {
+                "enum": [
+                  "agent",
+                  "cli",
+                  "hook",
+                  "import"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "system"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "agentTarget": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "interface": {
+          "enum": [
+            "desktop",
+            "cli",
+            "ide",
+            "web",
+            "api",
+            "unknown"
+          ]
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "additionalProperties": false
+    },
+    "repoPathLocator": {
+      "type": "object",
+      "required": [
+        "kind",
+        "repo_id",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "const": "repo_path"
+        },
+        "repo_id": {
+          "$ref": "#/$defs/repoId"
+        },
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        }
+      },
+      "additionalProperties": false
+    },
+    "storePathLocator": {
+      "type": "object",
+      "required": [
+        "kind",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "const": "store_path"
+        },
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        }
+      },
+      "additionalProperties": false
+    },
+    "homePathLocator": {
+      "type": "object",
+      "required": [
+        "kind",
+        "device_id",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "const": "home_path"
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        }
+      },
+      "additionalProperties": false
+    },
+    "uriLocator": {
+      "type": "object",
+      "required": [
+        "kind",
+        "uri",
+        "scope"
+      ],
+      "properties": {
+        "kind": {
+          "const": "uri"
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 8192
+        },
+        "scope": {
+          "enum": [
+            "portable",
+            "device"
+          ]
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "const": "device"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "device_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "const": "portable"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "device_id"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "uri"
+            ],
+            "properties": {
+              "uri": {
+                "pattern": "^[Ff][Ii][Ll][Ee]:"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scope": {
+                "const": "device"
+              }
+            },
+            "required": [
+              "device_id"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "resourceLocator": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/repoPathLocator"
+        },
+        {
+          "$ref": "#/$defs/storePathLocator"
+        },
+        {
+          "$ref": "#/$defs/homePathLocator"
+        },
+        {
+          "$ref": "#/$defs/uriLocator"
+        }
+      ]
+    },
+    "lineRangeSelector": {
+      "type": "object",
+      "required": [
+        "kind",
+        "start_line",
+        "end_line"
+      ],
+      "properties": {
+        "kind": {
+          "const": "line_range"
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "byteRangeSelector": {
+      "type": "object",
+      "required": [
+        "kind",
+        "start_byte",
+        "end_byte"
+      ],
+      "properties": {
+        "kind": {
+          "const": "byte_range"
+        },
+        "start_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_byte": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "timeRangeSelector": {
+      "type": "object",
+      "required": [
+        "kind",
+        "start_at",
+        "end_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "time_range"
+        },
+        "start_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "end_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "messageIdsSelector": {
+      "type": "object",
+      "required": [
+        "kind",
+        "message_ids"
+      ],
+      "properties": {
+        "kind": {
+          "const": "message_ids"
+        },
+        "message_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "opaqueSelector": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "opaque"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "additionalProperties": false
+    },
+    "resourceSelector": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/lineRangeSelector"
+        },
+        {
+          "$ref": "#/$defs/byteRangeSelector"
+        },
+        {
+          "$ref": "#/$defs/timeRangeSelector"
+        },
+        {
+          "$ref": "#/$defs/messageIdsSelector"
+        },
+        {
+          "$ref": "#/$defs/opaqueSelector"
+        }
+      ]
+    },
+    "resourceReference": {
+      "type": "object",
+      "required": [
+        "resource_id",
+        "locator",
+        "relation",
+        "role",
+        "note",
+        "extensions"
+      ],
+      "properties": {
+        "resource_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "locator": {
+          "$ref": "#/$defs/resourceLocator"
+        },
+        "relation": {
+          "enum": [
+            "created",
+            "modified",
+            "deleted",
+            "reviewed",
+            "planned",
+            "reference",
+            "generated"
+          ]
+        },
+        "role": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "note": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "selection": {
+          "$ref": "#/$defs/resourceSelector"
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[^\\s/]+/[^\\s/]+$",
+          "maxLength": 255
+        },
+        "format": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "resource_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sessionLogReference": {
+      "type": "object",
+      "required": [
+        "log_ref_id",
+        "locator",
+        "extensions"
+      ],
+      "properties": {
+        "log_ref_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "locator": {
+          "$ref": "#/$defs/resourceLocator"
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[^\\s/]+/[^\\s/]+$",
+          "maxLength": 255
+        },
+        "format": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "adapter": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "selector": {
+          "$ref": "#/$defs/resourceSelector"
+        },
+        "resource_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "selection_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "description": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sessionReference": {
+      "type": "object",
+      "required": [
+        "session_ref_id",
+        "system",
+        "relation",
+        "logs",
+        "extensions"
+      ],
+      "properties": {
+        "session_ref_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "system": {
+          "$ref": "#/$defs/openIdentifier"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "relation": {
+          "enum": [
+            "authoring",
+            "supporting",
+            "recovery"
+          ]
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sessionLogReference"
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "session_id"
+          ]
+        },
+        {
+          "properties": {
+            "logs": {
+              "minItems": 1
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "evidenceReference": {
+      "type": "object",
+      "required": [
+        "ref_id"
+      ],
+      "properties": {
+        "ref_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "selector": {
+          "$ref": "#/$defs/resourceSelector"
+        },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 4000
+        }
+      },
+      "additionalProperties": false
+    },
+    "gitHead": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "state",
+            "symbolic_ref",
+            "oid"
+          ],
+          "properties": {
+            "state": {
+              "const": "attached"
+            },
+            "symbolic_ref": {
+              "type": "string",
+              "pattern": "^refs/heads/.+"
+            },
+            "oid": {
+              "$ref": "#/$defs/gitObjectId"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "state",
+            "oid"
+          ],
+          "properties": {
+            "state": {
+              "const": "detached"
+            },
+            "oid": {
+              "$ref": "#/$defs/gitObjectId"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "state",
+            "symbolic_ref"
+          ],
+          "properties": {
+            "state": {
+              "const": "unborn"
+            },
+            "symbolic_ref": {
+              "type": "string",
+              "pattern": "^refs/heads/.+"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "gitUpstream": {
+      "type": "object",
+      "required": [
+        "remote",
+        "ref",
+        "ahead",
+        "behind"
+      ],
+      "properties": {
+        "remote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^refs/.+"
+        },
+        "oid": {
+          "$ref": "#/$defs/gitObjectId"
+        },
+        "ahead": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "behind": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "gitOperation": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "none",
+            "merge",
+            "rebase",
+            "cherry-pick",
+            "revert",
+            "bisect",
+            "other"
+          ]
+        },
+        "detail": {
+          "$ref": "#/$defs/nonBlankString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "other"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "detail"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "changeStatus": {
+      "enum": [
+        "unmodified",
+        "untracked",
+        "ignored",
+        "added",
+        "modified",
+        "deleted",
+        "renamed",
+        "copied",
+        "type-changed",
+        "unmerged",
+        "unknown"
+      ]
+    },
+    "changeEntry": {
+      "type": "object",
+      "required": [
+        "path",
+        "index_status",
+        "worktree_status",
+        "conflict"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        "original_path": {
+          "$ref": "#/$defs/repoRelativePath"
+        },
+        "index_status": {
+          "$ref": "#/$defs/changeStatus"
+        },
+        "worktree_status": {
+          "$ref": "#/$defs/changeStatus"
+        },
+        "conflict": {
+          "type": "boolean"
+        },
+        "index_content_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "worktree_content_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "index_status"
+                ],
+                "properties": {
+                  "index_status": {
+                    "enum": [
+                      "renamed",
+                      "copied"
+                    ]
+                  }
+                }
+              },
+              {
+                "required": [
+                  "worktree_status"
+                ],
+                "properties": {
+                  "worktree_status": {
+                    "enum": [
+                      "renamed",
+                      "copied"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "original_path"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "conflict"
+            ],
+            "properties": {
+              "conflict": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "index_status": {
+                    "const": "unmerged"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "worktree_status": {
+                    "const": "unmerged"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "index_status": {
+                    "const": "unmerged"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "worktree_status": {
+                    "const": "unmerged"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "conflict": {
+                "const": true
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "changeList": {
+      "type": "object",
+      "required": [
+        "complete",
+        "total_entries",
+        "untracked_included",
+        "ignored_included",
+        "entries"
+      ],
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "total_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "untracked_included": {
+          "type": "boolean"
+        },
+        "ignored_included": {
+          "type": "boolean"
+        },
+        "entries": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/changeEntry"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "worktreeFingerprint": {
+      "type": "object",
+      "required": [
+        "profile",
+        "digest"
+      ],
+      "properties": {
+        "profile": {
+          "const": "ctx-git-worktree-v1"
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256Digest"
+        }
+      },
+      "additionalProperties": false
+    },
+    "worktreeState": {
+      "type": "object",
+      "required": [
+        "state",
+        "changes"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "clean",
+            "dirty",
+            "unknown"
+          ]
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/worktreeFingerprint"
+        },
+        "changes": {
+          "$ref": "#/$defs/changeList"
+        },
+        "diagnostic": {
+          "$ref": "#/$defs/nonBlankString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "clean"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "fingerprint"
+            ],
+            "not": {
+              "required": [
+                "diagnostic"
+              ]
+            },
+            "properties": {
+              "changes": {
+                "properties": {
+                  "complete": {
+                    "const": true
+                  },
+                  "untracked_included": {
+                    "const": true
+                  },
+                  "ignored_included": {
+                    "const": false
+                  },
+                  "total_entries": {
+                    "const": 0
+                  },
+                  "entries": {
+                    "maxItems": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "dirty"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "fingerprint"
+            ],
+            "not": {
+              "required": [
+                "diagnostic"
+              ]
+            },
+            "properties": {
+              "changes": {
+                "properties": {
+                  "complete": {
+                    "const": true
+                  },
+                  "untracked_included": {
+                    "const": true
+                  },
+                  "ignored_included": {
+                    "const": false
+                  },
+                  "entries": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "diagnostic"
+            ],
+            "not": {
+              "required": [
+                "fingerprint"
+              ]
+            },
+            "properties": {
+              "changes": {
+                "properties": {
+                  "complete": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "gitState": {
+      "type": "object",
+      "required": [
+        "object_format",
+        "head",
+        "operation",
+        "worktree"
+      ],
+      "properties": {
+        "object_format": {
+          "enum": [
+            "sha1",
+            "sha256"
+          ]
+        },
+        "head": {
+          "$ref": "#/$defs/gitHead"
+        },
+        "upstream": {
+          "$ref": "#/$defs/gitUpstream"
+        },
+        "operation": {
+          "$ref": "#/$defs/gitOperation"
+        },
+        "worktree": {
+          "$ref": "#/$defs/worktreeState"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "object_format"
+            ],
+            "properties": {
+              "object_format": {
+                "const": "sha1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha1"
+                  }
+                }
+              },
+              "upstream": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "object_format"
+            ],
+            "properties": {
+              "object_format": {
+                "const": "sha256"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha256"
+                  }
+                }
+              },
+              "upstream": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha256"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "repositorySnapshot": {
+      "type": "object",
+      "required": [
+        "repo_id",
+        "working_copy_id",
+        "root_uri",
+        "git"
+      ],
+      "properties": {
+        "repo_id": {
+          "$ref": "#/$defs/repoId"
+        },
+        "working_copy_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "root_uri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 8192
+        },
+        "git": {
+          "$ref": "#/$defs/gitState"
+        }
+      },
+      "additionalProperties": false
+    },
+    "baselineWorktree": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "clean",
+            "dirty",
+            "unknown"
+          ]
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/worktreeFingerprint"
+        },
+        "diagnostic": {
+          "$ref": "#/$defs/nonBlankString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "clean"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "diagnostic"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "dirty"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "fingerprint"
+            ],
+            "not": {
+              "required": [
+                "diagnostic"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "diagnostic"
+            ],
+            "not": {
+              "required": [
+                "fingerprint"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "repositoryBaseline": {
+      "type": "object",
+      "required": [
+        "repo_id",
+        "observed_at",
+        "object_format",
+        "head",
+        "operation",
+        "worktree"
+      ],
+      "properties": {
+        "repo_id": {
+          "$ref": "#/$defs/repoId"
+        },
+        "working_copy_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "object_format": {
+          "enum": [
+            "sha1",
+            "sha256"
+          ]
+        },
+        "head": {
+          "$ref": "#/$defs/gitHead"
+        },
+        "operation": {
+          "$ref": "#/$defs/gitOperation"
+        },
+        "worktree": {
+          "$ref": "#/$defs/baselineWorktree"
+        },
+        "runtime_snapshot_id": {
+          "$ref": "#/$defs/ulid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "object_format"
+            ],
+            "properties": {
+              "object_format": {
+                "const": "sha1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "object_format"
+            ],
+            "properties": {
+              "object_format": {
+                "const": "sha256"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head": {
+                "properties": {
+                  "oid": {
+                    "$ref": "#/$defs/gitSha256"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capture": {
+      "type": "object",
+      "required": [
+        "completeness",
+        "warnings",
+        "omitted_sections"
+      ],
+      "properties": {
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "warnings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        },
+        "omitted_sections": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/openIdentifier"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "completeness"
+            ],
+            "properties": {
+              "completeness": {
+                "const": "complete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "warnings": {
+                "maxItems": 0
+              },
+              "omitted_sections": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "completeness"
+            ],
+            "properties": {
+              "completeness": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "warnings": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "in_scope",
+        "out_of_scope"
+      ],
+      "properties": {
+        "in_scope": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "objective": {
+      "type": "object",
+      "required": [
+        "goal",
+        "success_criteria",
+        "scope"
+      ],
+      "properties": {
+        "goal": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "success_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        }
+      },
+      "additionalProperties": false
+    },
+    "constraint": {
+      "type": "object",
+      "required": [
+        "text",
+        "strength",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "strength": {
+          "enum": [
+            "hard",
+            "soft"
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "satisfied",
+            "superseded"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "assumption": {
+      "type": "object",
+      "required": [
+        "text",
+        "basis",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "basis": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "validated",
+            "invalidated"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "text",
+        "evidence_refs"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "details": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "statement",
+        "rationale",
+        "status",
+        "alternatives",
+        "consequences",
+        "supersedes",
+        "evidence_refs"
+      ],
+      "properties": {
+        "decision_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "statement": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "rationale": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "superseded"
+          ]
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        },
+        "consequences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonBlankString"
+          }
+        },
+        "supersedes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/referenceId"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "workItem": {
+      "type": "object",
+      "required": [
+        "summary",
+        "resource_refs",
+        "evidence_refs"
+      ],
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "current_state": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "result": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "resource_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/referenceId"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "nextAction": {
+      "type": "object",
+      "required": [
+        "action_id",
+        "description",
+        "priority",
+        "done_when",
+        "dependencies",
+        "resource_refs",
+        "evidence_refs"
+      ],
+      "properties": {
+        "action_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "description": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "normal",
+            "low"
+          ]
+        },
+        "done_when": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/referenceId"
+          }
+        },
+        "resource_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/referenceId"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "blocker": {
+      "type": "object",
+      "required": [
+        "blocker_id",
+        "description",
+        "impact",
+        "unblock_condition",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "blocker_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "description": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "impact": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "unblock_condition": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "resolved"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "openQuestion": {
+      "type": "object",
+      "required": [
+        "question",
+        "impact",
+        "evidence_refs"
+      ],
+      "properties": {
+        "question": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "impact": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "validation_id",
+        "kind",
+        "outcome",
+        "summary",
+        "evidence_refs"
+      ],
+      "properties": {
+        "validation_id": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "kind": {
+          "enum": [
+            "test",
+            "build",
+            "lint",
+            "typecheck",
+            "manual",
+            "other"
+          ]
+        },
+        "command": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "cwd": {
+          "type": "object",
+          "required": [
+            "repo_id",
+            "path"
+          ],
+          "properties": {
+            "repo_id": {
+              "$ref": "#/$defs/repoId"
+            },
+            "path": {
+              "$ref": "#/$defs/repoRelativePath"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "not-run",
+            "unknown"
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "output_resource_ref": {
+          "$ref": "#/$defs/referenceId"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "semanticContext": {
+      "type": "object",
+      "required": [
+        "title",
+        "summary",
+        "objective",
+        "constraints",
+        "assumptions",
+        "findings",
+        "decisions",
+        "progress",
+        "next_actions",
+        "blockers",
+        "open_questions",
+        "validations",
+        "relevant_resources"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "summary": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "objective": {
+          "$ref": "#/$defs/objective"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assumption"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          }
+        },
+        "progress": {
+          "type": "object",
+          "required": [
+            "completed",
+            "current"
+          ],
+          "properties": {
+            "completed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/workItem"
+              }
+            },
+            "current": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/workItem"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nextAction"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/blocker"
+          }
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/openQuestion"
+          }
+        },
+        "validations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validation"
+          }
+        },
+        "relevant_resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceReference"
+          }
+        },
+        "additional_context": {
+          "$ref": "#/$defs/nonBlankString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "semanticStateInvariants": {
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "work_status"
+            ],
+            "properties": {
+              "work_status": {
+                "const": "blocked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "properties": {
+                  "blockers": {
+                    "minItems": 1,
+                    "contains": {
+                      "required": [
+                        "status"
+                      ],
+                      "properties": {
+                        "status": {
+                          "const": "active"
+                        }
+                      }
+                    },
+                    "minContains": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "work_status"
+            ],
+            "properties": {
+              "work_status": {
+                "const": "completed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "properties": {
+                  "progress": {
+                    "properties": {
+                      "current": {
+                        "maxItems": 0
+                      }
+                    }
+                  },
+                  "blockers": {
+                    "not": {
+                      "contains": {
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "const": "active"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

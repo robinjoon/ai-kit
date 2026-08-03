@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ctx:schema:v1:runtime-snapshot",
+  "title": "ctx runtime snapshot v1",
+  "description": "An immutable mechanical observation of one working copy at a point in time.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "record_type",
+    "snapshot_id",
+    "captured_at",
+    "device_id",
+    "trigger",
+    "producer",
+    "repository",
+    "session_refs",
+    "capture",
+    "content_digest",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/schemaVersion"
+    },
+    "record_type": {
+      "const": "ctx.runtime_snapshot"
+    },
+    "snapshot_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "captured_at": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/timestamp"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "task_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "active_checkpoint_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "previous_snapshot_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "trigger": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "ctx-command",
+            "lifecycle-hook",
+            "manual",
+            "recovery",
+            "other"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "ctx-command",
+                  "lifecycle-hook",
+                  "other"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "producer": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/producer"
+    },
+    "repository": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/repositorySnapshot"
+    },
+    "session_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:ctx:schema:v1:common#/$defs/sessionReference"
+      }
+    },
+    "capture": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/capture"
+    },
+    "content_digest": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/sha256Digest"
+    },
+    "extensions": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/extensions"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "active_checkpoint_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "task_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "repository": {
+            "properties": {
+              "git": {
+                "properties": {
+                  "worktree": {
+                    "properties": {
+                      "state": {
+                        "const": "unknown"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capture": {
+            "properties": {
+              "completeness": {
+                "const": "partial"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

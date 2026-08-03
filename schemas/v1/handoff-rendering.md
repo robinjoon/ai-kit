@@ -12,6 +12,29 @@
 - 두 레코드의 `task_id`가 같다.
 - 핸드오프의 `checkpoint_digest`가 체크포인트의 `content_digest`와 같다.
 
+## 핸드오프 대상 확장
+
+`purpose: "handoff"` 체크포인트는 수신 대상을 보존해야 할 때 인식된 확장 경로
+`extensions["io.github.robinjoon.ctx"].handoff_target`에 저장한다. 값은 공통 스키마의
+[`agentTarget`](common.schema.json) 객체다. 즉 `system`, `interface`, `device_id` 중 적어도
+하나가 있어야 하고 다른 속성은 허용하지 않는다. `system`은 최대 255자의 개방형 식별자이고,
+`interface`는 `desktop`, `cli`, `ide`, `web`, `api`, `unknown` 중 하나이며, `device_id`는
+1~255자 문자열이다.
+
+이 확장은 체크포인트 레코드의 일부이므로 `content_digest`를 계산할 때 `content_digest` 필드만
+제거한 나머지 JSON의 RFC 8785 JCS 입력에 포함된다. 따라서 대상 변경은 별도의 불변 체크포인트가
+되며, 대상 없는 체크포인트와 중복으로 취급하지 않는다. 이는 `context`만 해시하는
+`context_digest`와는 별개다.
+
+포인터를 처음 만들거나 다시 생성할 때 `ctx`는 이 확장의 대상을 `handoff.md`의 최상위 `target`에
+복원한다. 확장이 있으면 포인터의 `target`도 RFC 8785 JCS 기준으로 확장 값과 동일해야 한다.
+누락되었거나 일치하지 않으면 포인터는 유효하지 않으며, 유효한 현재 핸드오프 체크포인트가 있으면
+확장에 저장된 대상으로 다시 생성한다. 동기화와 매니페스트 재구축도 체크포인트 확장을 보존하고,
+그 확장을 사용해 포인터를 재생성한다.
+
+이 확장이 없는 이전 체크포인트는 기존의 유효한 포인터 `target`을 계속 허용한다. 다만 포인터를
+다시 생성해야 하면 대상은 체크포인트에서 복구할 수 없으므로 새 포인터에는 `target`을 넣지 않는다.
+
 ## 파일 직렬화
 
 파일은 다음 바이트 구조를 따른다.

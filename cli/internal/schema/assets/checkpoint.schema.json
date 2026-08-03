@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ctx:schema:v1:checkpoint",
+  "title": "ctx checkpoint v1",
+  "description": "A provider-neutral, self-contained and immutable semantic state for resuming a task.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "record_type",
+    "checkpoint_id",
+    "task_id",
+    "parent_ids",
+    "created_at",
+    "purpose",
+    "stability",
+    "work_status",
+    "capture",
+    "producer",
+    "session_refs",
+    "context",
+    "context_digest",
+    "workspace",
+    "content_digest",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/schemaVersion"
+    },
+    "record_type": {
+      "const": "ctx.checkpoint"
+    },
+    "checkpoint_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "task_id": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+    },
+    "parent_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "urn:ctx:schema:v1:common#/$defs/ulid"
+      }
+    },
+    "created_at": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/timestamp"
+    },
+    "purpose": {
+      "enum": [
+        "progress",
+        "milestone",
+        "handoff",
+        "completion",
+        "merge",
+        "recovery"
+      ]
+    },
+    "stability": {
+      "enum": [
+        "draft",
+        "stable"
+      ]
+    },
+    "work_status": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/workStatus"
+    },
+    "capture": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/capture"
+    },
+    "producer": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/producer"
+    },
+    "session_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:ctx:schema:v1:common#/$defs/sessionReference"
+      }
+    },
+    "context": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/semanticContext"
+    },
+    "context_digest": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/sha256Digest"
+    },
+    "workspace": {
+      "type": "object",
+      "required": [
+        "primary_repo_id",
+        "repositories"
+      ],
+      "properties": {
+        "primary_repo_id": {
+          "$ref": "urn:ctx:schema:v1:common#/$defs/repoId"
+        },
+        "repositories": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "urn:ctx:schema:v1:common#/$defs/repositoryBaseline"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "content_digest": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/sha256Digest"
+    },
+    "extensions": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/extensions"
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/semanticStateInvariants"
+    },
+    {
+      "if": {
+        "required": [
+          "stability"
+        ],
+        "properties": {
+          "stability": {
+            "const": "stable"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capture": {
+            "properties": {
+              "completeness": {
+                "const": "complete"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "workspace": {
+            "properties": {
+              "repositories": {
+                "contains": {
+                  "properties": {
+                    "worktree": {
+                      "properties": {
+                        "state": {
+                          "const": "unknown"
+                        }
+                      }
+                    }
+                  }
+                },
+                "minContains": 1
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capture": {
+            "properties": {
+              "completeness": {
+                "const": "partial"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "purpose": {
+            "const": "handoff"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stability": {
+            "const": "stable"
+          },
+          "capture": {
+            "properties": {
+              "completeness": {
+                "const": "complete"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "purpose": {
+            "const": "completion"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stability": {
+            "const": "stable"
+          },
+          "work_status": {
+            "const": "completed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "purpose": {
+            "const": "merge"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "parent_ids": {
+            "minItems": 2
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "parent_ids": {
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "purpose",
+          "work_status"
+        ],
+        "properties": {
+          "purpose": {
+            "const": "handoff"
+          },
+          "work_status": {
+            "enum": [
+              "active",
+              "blocked"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "properties": {
+              "next_actions": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
