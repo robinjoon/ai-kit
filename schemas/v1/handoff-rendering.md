@@ -45,7 +45,7 @@ record_type: "ctx.handoff"
 handoff_id: "01ARZ3NDEKTSV4RRFFQ69G5FAY"
 task_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 checkpoint_id: "01ARZ3NDEKTSV4RRFFQ69G5FAW"
-checkpoint_digest: "sha256:8699fb26c336cfe660051b38c50902ca4668b6d1f450a9b4860740b92d59b37b"
+checkpoint_digest: "sha256:05b4e564c6dd58c0bf2c44284e3d28cac303d6a4678b08b9d35b24c5aa27c285"
 generated_at: "2026-08-03T06:06:00Z"
 producer:
   actor_type: "cli"

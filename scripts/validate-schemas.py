@@ -19,12 +19,14 @@ SCHEMA_DIR = ROOT / "schemas" / "v1"
 
 SCHEMA_FILES = {
     "common": SCHEMA_DIR / "common.schema.json",
+    "capture_input": SCHEMA_DIR / "capture-input.schema.json",
     "runtime": SCHEMA_DIR / "runtime-snapshot.schema.json",
     "checkpoint": SCHEMA_DIR / "checkpoint.schema.json",
     "handoff": SCHEMA_DIR / "handoff.schema.json",
 }
 
 EXAMPLE_FILES = {
+    "capture_input": SCHEMA_DIR / "examples" / "capture-input.example.json",
     "runtime": SCHEMA_DIR / "examples" / "runtime-snapshot.example.json",
     "checkpoint": SCHEMA_DIR / "examples" / "checkpoint.example.json",
     "handoff": SCHEMA_DIR / "examples" / "handoff.example.json",
@@ -125,6 +127,20 @@ def render_handoff(record: dict) -> tuple[str, str]:
 def valid_variants(examples: dict[str, dict]) -> list[tuple[str, str, dict]]:
     variants: list[tuple[str, str, dict]] = []
 
+    partial_input = copy.deepcopy(examples["capture_input"])
+    partial_input["capture"] = {
+        "completeness": "partial",
+        "warnings": ["Findings were not reviewed."],
+        "omitted_sections": ["context.findings"],
+    }
+    variants.append(("partial capture input", "capture_input", partial_input))
+
+    completed_input = copy.deepcopy(examples["capture_input"])
+    completed_input["work_status"] = "completed"
+    completed_input["context"]["progress"]["current"] = []
+    completed_input["context"]["next_actions"] = []
+    variants.append(("completed capture input", "capture_input", completed_input))
+
     detached = copy.deepcopy(examples["runtime"])
     detached["repository"]["git"]["head"] = {
         "state": "detached",
@@ -192,6 +208,50 @@ def valid_variants(examples: dict[str, dict]) -> list[tuple[str, str, dict]]:
 
 def invalid_cases(examples: dict[str, dict]) -> list[tuple[str, str, dict]]:
     cases: list[tuple[str, str, dict]] = []
+
+    input_with_cli_owned_field = copy.deepcopy(examples["capture_input"])
+    input_with_cli_owned_field["checkpoint_id"] = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+    cases.append(
+        (
+            "capture input with CLI-owned checkpoint ID",
+            "capture_input",
+            input_with_cli_owned_field,
+        )
+    )
+
+    blocked_input_without_blocker = copy.deepcopy(examples["capture_input"])
+    blocked_input_without_blocker["work_status"] = "blocked"
+    cases.append(
+        (
+            "blocked capture input without active blocker",
+            "capture_input",
+            blocked_input_without_blocker,
+        )
+    )
+
+    completed_input_with_current_work = copy.deepcopy(examples["capture_input"])
+    completed_input_with_current_work["work_status"] = "completed"
+    cases.append(
+        (
+            "completed capture input with current work",
+            "capture_input",
+            completed_input_with_current_work,
+        )
+    )
+
+    input_with_machine_omission = copy.deepcopy(examples["capture_input"])
+    input_with_machine_omission["capture"] = {
+        "completeness": "partial",
+        "warnings": ["Git could not be inspected."],
+        "omitted_sections": ["workspace.repositories.worktree"],
+    }
+    cases.append(
+        (
+            "capture input with CLI-owned omitted section",
+            "capture_input",
+            input_with_machine_omission,
+        )
+    )
 
     invalid_ulid = copy.deepcopy(examples["runtime"])
     invalid_ulid["snapshot_id"] = "81ARZ3NDEKTSV4RRFFQ69G5FAX"
@@ -268,7 +328,7 @@ def invalid_cases(examples: dict[str, dict]) -> list[tuple[str, str, dict]]:
     blocked_with_resolved_blocker["work_status"] = "blocked"
     blocked_with_resolved_blocker["context"]["blockers"] = [
         {
-            "blocker_id": "01ARZ3NDEKTSV4RRFFQ69G5FAQ",
+            "blocker_id": "blocker-resolved",
             "description": "A previously resolved blocker.",
             "impact": "No current impact.",
             "unblock_condition": "Already satisfied.",

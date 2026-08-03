@@ -8,6 +8,14 @@
       "type": "integer",
       "const": 1
     },
+    "workStatus": {
+      "enum": [
+        "active",
+        "blocked",
+        "completed",
+        "abandoned"
+      ]
+    },
     "ulid": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -1608,7 +1616,7 @@
       ],
       "properties": {
         "decision_id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/referenceId"
         },
         "statement": {
           "$ref": "#/$defs/nonBlankString"
@@ -1639,7 +1647,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/ulid"
+            "$ref": "#/$defs/referenceId"
           }
         },
         "evidence_refs": {
@@ -1697,7 +1705,7 @@
       ],
       "properties": {
         "action_id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/referenceId"
         },
         "description": {
           "$ref": "#/$defs/nonBlankString"
@@ -1716,7 +1724,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/ulid"
+            "$ref": "#/$defs/referenceId"
           }
         },
         "resource_refs": {
@@ -1747,7 +1755,7 @@
       ],
       "properties": {
         "blocker_id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/referenceId"
         },
         "description": {
           "$ref": "#/$defs/nonBlankString"
@@ -1807,7 +1815,7 @@
       ],
       "properties": {
         "validation_id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/referenceId"
         },
         "kind": {
           "enum": [
@@ -1870,6 +1878,194 @@
         }
       },
       "additionalProperties": false
+    },
+    "semanticContext": {
+      "type": "object",
+      "required": [
+        "title",
+        "summary",
+        "objective",
+        "constraints",
+        "assumptions",
+        "findings",
+        "decisions",
+        "progress",
+        "next_actions",
+        "blockers",
+        "open_questions",
+        "validations",
+        "relevant_resources"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "summary": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "objective": {
+          "$ref": "#/$defs/objective"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assumption"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          }
+        },
+        "progress": {
+          "type": "object",
+          "required": [
+            "completed",
+            "current"
+          ],
+          "properties": {
+            "completed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/workItem"
+              }
+            },
+            "current": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/workItem"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nextAction"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/blocker"
+          }
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/openQuestion"
+          }
+        },
+        "validations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validation"
+          }
+        },
+        "relevant_resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceReference"
+          }
+        },
+        "additional_context": {
+          "$ref": "#/$defs/nonBlankString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "semanticStateInvariants": {
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "work_status"
+            ],
+            "properties": {
+              "work_status": {
+                "const": "blocked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "properties": {
+                  "blockers": {
+                    "minItems": 1,
+                    "contains": {
+                      "required": [
+                        "status"
+                      ],
+                      "properties": {
+                        "status": {
+                          "const": "active"
+                        }
+                      }
+                    },
+                    "minContains": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "work_status"
+            ],
+            "properties": {
+              "work_status": {
+                "const": "completed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "properties": {
+                  "progress": {
+                    "properties": {
+                      "current": {
+                        "maxItems": 0
+                      }
+                    }
+                  },
+                  "blockers": {
+                    "not": {
+                      "contains": {
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "const": "active"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

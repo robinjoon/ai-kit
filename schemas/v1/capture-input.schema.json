@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ctx:schema:capture-input:v1",
+  "title": "ctx semantic capture input v1",
+  "description": "Ephemeral provider-neutral semantic input accepted by ctx checkpoint and ctx handoff commands.",
+  "type": "object",
+  "required": [
+    "input_version",
+    "work_status",
+    "capture",
+    "context"
+  ],
+  "properties": {
+    "input_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "work_status": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/workStatus"
+    },
+    "capture": {
+      "allOf": [
+        {
+          "$ref": "urn:ctx:schema:v1:common#/$defs/capture"
+        },
+        {
+          "properties": {
+            "omitted_sections": {
+              "items": {
+                "enum": [
+                  "context.constraints",
+                  "context.assumptions",
+                  "context.findings",
+                  "context.decisions",
+                  "context.progress",
+                  "context.next_actions",
+                  "context.blockers",
+                  "context.open_questions",
+                  "context.validations",
+                  "context.relevant_resources",
+                  "context.additional_context"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "context": {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/semanticContext"
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "urn:ctx:schema:v1:common#/$defs/semanticStateInvariants"
+    }
+  ],
+  "additionalProperties": false
+}

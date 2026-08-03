@@ -84,6 +84,8 @@ flowchart LR
 
 JSON 레코드가 교환 규격의 정본이고 Markdown은 파생 표현이다. 체크포인트는 덮어쓰지 않는 작업 이력의 정본이다. 두 장치나 두 에이전트에서 여러 헤드가 생기면 모두 보존하고, `resume`은 사용할 헤드를 선택하게 한다. `manifest.yaml`과 `handoff.md`는 체크포인트에서 다시 만들 수 있어야 한다. 마지막 쓰기 우선 방식으로 다른 체크포인트를 버리지 않는다.
 
+스킬이 `checkpoint`와 `handoff` 명령에 전달하는 캡처 입력은 사이드카에 저장하지 않는다. 이 임시 입력은 `input_version`, `work_status`, `capture`, `context`만 포함하며, CLI가 완성한 체크포인트만 정본으로 저장한다.
+
 정확한 v1 필드, 조건부 규칙, 해시 계산법, 예제는 [ctx v1 스키마](schemas/v1/README.md)를 따른다.
 
 ## 5. 저장소와 작업 식별
@@ -172,7 +174,7 @@ CLI는 브랜치를 바꾸거나 패치를 적용하지 않는다. 예상한 Git
 현재 결정을 기록해 둬.
 ```
 
-스킬은 현재 대화에서 다음 의미 정보를 추출한다.
+스킬은 먼저 `ctx resolve`를 호출해 활성 작업과 CLI가 확인한 `repo_id`를 받는다. 그다음 현재 대화에서 다음 의미 정보를 추출한다.
 
 ```text
 summary, objective, constraints, assumptions, findings,
@@ -180,7 +182,7 @@ decisions, progress, next_actions, blockers, open_questions,
 validations, relevant_resources
 ```
 
-CLI는 여기에 저장소, 브랜치, HEAD, 작업 트리 상태와 지문 등의 기계적 정보를 직접 추가한다. 전체 변경 목록은 런타임 스냅숏에 저장하고, 체크포인트에는 재개에 필요한 Git 기준점과 의미 있는 관련 자료를 저장한다. 저장이 끝나면 새 체크포인트 ID를 반환한다.
+스킬은 이 정보를 `input_version`, `work_status`, `capture`, `context`로 구성해 표준 입력으로 전달한다. 컨텍스트의 저장소 참조에는 `resolve`가 반환한 `repo_id`를 그대로 사용한다. CLI는 여기에 작업 및 체크포인트 ID, 부모, 생성 시각, 세션 정보, 저장소, 브랜치, HEAD, 작업 트리 상태와 해시를 직접 추가한다. 전체 변경 목록은 런타임 스냅숏에 저장하고, 체크포인트에는 재개에 필요한 Git 기준점과 의미 있는 관련 자료를 저장한다. 저장이 끝나면 새 체크포인트 ID를 반환한다.
 
 ### 다른 에이전트 또는 장치로 핸드오프
 
@@ -243,7 +245,10 @@ ctx doctor --json
 - `stdout`: 요청한 Markdown 또는 버전이 있는 JSON 데이터만 출력한다.
 - `stderr`: 사람이 읽는 진단 메시지를 출력한다.
 - 성공 시에는 종료 코드 `0`을, 실패 시에는 실패 종류별로 정해진 0이 아닌 종료 코드를 반환한다.
-- `checkpoint`와 `handoff`는 스킬이 추출한 의미 컨텍스트를 같은 캡처 입력 계약에 따라 표준 입력에서 받는다. CLI가 작업 및 체크포인트 ID, 부모, 생성 시각, Git 기준점과 해시를 채우므로, 스킬이 저장 레코드 전체를 만들게 하지 않는다. `handoff`는 입력을 완전한 `purpose: handoff`, `stability: stable` 체크포인트로 저장하고, 같은 트랜잭션에서 대상과 동기화 의도를 반영한 얇은 포인터 레코드를 생성한다. 의미 정보는 핸드오프 레코드가 아니라 새 체크포인트에만 들어간다.
+- `checkpoint`와 `handoff`는 [캡처 입력 스키마](schemas/v1/capture-input.schema.json)에 따라 `input_version`, `work_status`, `capture`, `context`만 표준 입력에서 받는다. `purpose`, `stability`, 작업 및 체크포인트 ID, 부모, 생성 시각, 세션, Git 기준점과 해시는 CLI가 결정한다.
+- 캡처 전에 `resolve`를 호출해야 한다. 스킬은 `resolve`가 반환한 저장소 ID만 관련 자료와 검증 항목에 사용하며, CLI는 알 수 없는 저장소 ID를 거부한다.
+- `checkpoint`는 의미 입력과 기계적 관측을 합친 최종 `capture.completeness`가 `complete`이면 `stability: stable`, `partial`이면 `stability: draft`로 저장한다. v1에는 이를 덮어쓰는 옵션을 두지 않는다.
+- `handoff`는 입력과 기계적 관측을 모두 합친 최종 캡처가 완전할 때만 `purpose: handoff`, `stability: stable` 체크포인트를 저장하고, 같은 트랜잭션에서 대상과 동기화 의도를 반영한 얇은 포인터 레코드를 생성한다. 의미 정보는 핸드오프 레코드가 아니라 새 체크포인트에만 들어간다.
 - 작업 ID, 정렬한 부모 ID 집합, 생성 목적, 안정성, 작업 상태, 캡처 상태, `context_digest`와 저장소별 Git 기준점이 모두 같으면 중복 체크포인트를 만들지 않는다. 생성 목적이 다르거나 부모 집합이 다른 체크포인트는 내용이 같아도 별개의 기록으로 보존한다.
 
 `export`와 `import`는 버전이 있는 이식용 번들로 작업 메타데이터와 체크포인트를 내보내고 가져온다. 이는 일반적인 에이전트 재개 경로가 아니라 수동 이전과 백업을 위한 데이터 이동 인터페이스다.
