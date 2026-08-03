@@ -11,7 +11,7 @@ flowchart LR
     U["사용자"] --> A["Claude Code 또는 Codex"]
     A --> S["제품별 ctx 스킬"]
     S --> CLI["ctx CLI"]
-    CLI --> STORE["로컬 사이드카 저장소"]
+    CLI --> STORE["파일 기반 사이드카<br/>JSON·YAML·Markdown"]
     CLI -. "관측·비교" .-> GIT["기존 Git 작업 사본"]
     STORE <--> SYNC["선택적 ctx 동기화"]
 ```
@@ -122,13 +122,47 @@ Claude Code와 Codex에는 같은 사용자 의도를 제공하는 스킬을 각
 
 ## 저장과 동기화
 
-사이드카 저장소는 개발 저장소의 `.git` 바깥에 둔다. 체크포인트가 정본이며 작업 manifest, 현재 핸드오프, 검색 인덱스와 앱 바인딩은 체크포인트 또는 로컬 상태에서 다시 만들 수 있어야 한다.
+MVP의 사이드카 저장소는 별도 데이터베이스나 상시 실행 서버가 아니라 **일반 파일과 디렉터리**다. 개발 저장소의 `.git` 바깥에 두고, 임시 파일을 같은 디렉터리에 쓴 뒤 원자적으로 이름을 바꾸는 방식과 작업 단위 잠금으로 일관성을 지킨다.
+
+macOS의 기본 구조는 다음과 같다.
+
+```text
+~/Library/Application Support/ctx/
+  config.yaml
+  repos/
+    <repo-id>/
+      repo.yaml
+      tasks/
+        <task-id>/
+          manifest.yaml
+          handoff.md
+          checkpoints/
+            <checkpoint-id>.json
+          runtime/
+            snapshots/
+              <snapshot-id>.json
+            bindings/
+```
+
+| 경로 | 역할 |
+|---|---|
+| `config.yaml` | 장치 ID, 기본 저장 위치와 선택적 동기화 설정 |
+| `repo.yaml` | 저장소 식별 정보와 이 장치에서 알려진 작업 디렉터리 매핑 |
+| `manifest.yaml` | 작업 제목·상태·별칭·체크포인트 헤드를 빠르게 찾기 위한 메타데이터 |
+| `handoff.md` | 현재 안정 체크포인트를 가리키는 사람이 읽을 수 있는 얇은 포인터 |
+| `checkpoints/*.json` | 덮어쓰지 않는 자체 완결형 작업 컨텍스트의 정본 |
+| `runtime/snapshots/*.json` | Git과 세션에서 자동 수집한 장치별 기계 상태 |
+| `runtime/bindings/` | 앱 세션과 활성 작업을 연결하는 재생성 가능한 로컬 바인딩 |
+
+체크포인트 JSON이 정본이다. `manifest.yaml`과 `handoff.md`는 체크포인트에서 다시 만들 수 있고, 런타임 스냅숏과 바인딩은 장치별 보조 상태다. 구현을 위해 SQLite, 외부 데이터베이스, 데몬이나 별도 GUI를 전제로 하지 않는다.
 
 장치 간 전환에서는 두 경로가 독립적으로 동작한다.
 
 1. 코드는 사용자가 기존 Git 원격으로 동기화한다.
 2. ctx는 설정된 저장소로 체크포인트와 최소 작업 메타데이터를 동기화한다.
 3. `resume`은 원격 ctx 변경을 먼저 가져오고 현재 Git 작업 사본과 기준점을 비교한다.
+
+동기화 역시 데이터베이스 복제를 뜻하지 않는다. 추가 전용 체크포인트 파일의 합집합을 보존하고, 충돌할 수 있는 `manifest.yaml`과 `handoff.md`는 정본 체크포인트에서 다시 만든다.
 
 ## 구현 순서
 
