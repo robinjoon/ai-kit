@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "record_type": "ctx.checkpoint",
+  "checkpoint_id": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "task_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "parent_ids": [
+    "01ARZ3NDEKTSV4RRFFQ69G5FAT"
+  ],
+  "created_at": "2026-08-03T06:05:00Z",
+  "purpose": "handoff",
+  "stability": "stable",
+  "work_status": "active",
+  "capture": {
+    "completeness": "complete",
+    "warnings": [],
+    "omitted_sections": []
+  },
+  "producer": {
+    "actor_type": "agent",
+    "system": "com.anthropic.claude-code",
+    "version": "1.0.0",
+    "adapter": "ctx.adapters.claude-code",
+    "device_id": "personal-macbook",
+    "extensions": {}
+  },
+  "session_refs": [
+    {
+      "session_ref_id": "session-claude-authoring",
+      "system": "com.anthropic.claude-code",
+      "session_id": "provider-session-123",
+      "relation": "authoring",
+      "logs": [
+        {
+          "log_ref_id": "log-claude-authoring",
+          "locator": {
+            "kind": "home_path",
+            "device_id": "personal-macbook",
+            "path": ".claude/projects/example/provider-session-123.jsonl"
+          },
+          "media_type": "application/x-ndjson",
+          "format": "jsonl",
+          "adapter": "ctx.adapters.claude-code-jsonl",
+          "adapter_version": "1.0.0",
+          "selector": {
+            "kind": "message_ids",
+            "message_ids": [
+              "message-188",
+              "message-244"
+            ]
+          },
+          "resource_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "description": "The source conversation for the checkpoint decisions.",
+          "extensions": {}
+        }
+      ],
+      "extensions": {}
+    }
+  ],
+  "context": {
+    "title": "에이전트 간 컨텍스트 전달 스키마 정의",
+    "summary": "체크포인트와 런타임 스냅숏을 공급자 중립 JSON으로 정의하고, 핸드오프는 안정 체크포인트를 가리키는 파생 포인터로 만든다.",
+    "objective": {
+      "goal": "Claude Code와 Codex가 같은 작업 상태를 손실 없이 이어받을 수 있는 v1 규격을 확정한다.",
+      "success_criteria": [
+        "체크포인트만으로 원본 로그 없이 작업을 재개할 수 있다.",
+        "현재 Git 상태와 체크포인트의 기준 상태를 비교할 수 있다.",
+        "제품별 로그 위치를 코어 스키마 변경 없이 참조할 수 있다."
+      ],
+      "scope": {
+        "in_scope": [
+          "런타임 스냅숏, 체크포인트, 얇은 핸드오프",
+          "Git 기준 상태와 선택적 세션 로그 참조"
+        ],
+        "out_of_scope": [
+          "제품별 원본 로그 파서 구현",
+          "자동 브랜치 전환과 패치 적용"
+        ]
+      }
+    },
+    "constraints": [
+      {
+        "text": "코어 필드는 특정 에이전트 제품의 필드명이나 로그 형식에 의존하지 않는다.",
+        "strength": "hard",
+        "status": "active",
+        "evidence_refs": []
+      }
+    ],
+    "assumptions": [
+      {
+        "text": "각 제품의 세션 로그는 URI 또는 장치별 홈 경로로 식별할 수 있다.",
+        "basis": "제품별 어댑터가 실제 위치와 형식을 해석하도록 책임을 분리한다.",
+        "status": "active",
+        "evidence_refs": []
+      }
+    ],
+    "findings": [
+      {
+        "text": "원본 로그는 복구와 근거 확인에 유용하지만 재개의 정본으로 사용하면 제품 형식에 종속된다.",
+        "evidence_refs": [
+          {
+            "ref_id": "log-claude-authoring",
+            "selector": {
+              "kind": "message_ids",
+              "message_ids": [
+                "message-188",
+                "message-244"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "decision_id": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+        "statement": "체크포인트를 자체 완결형 JSON 정본으로 사용한다.",
+        "rationale": "다음 에이전트가 부모 체크포인트, 런타임 스냅숏 또는 원본 로그를 읽지 않고도 작업을 재개할 수 있어야 한다.",
+        "status": "accepted",
+        "alternatives": [
+          "이전 체크포인트와의 델타만 저장",
+          "원본 대화 로그를 재개의 정본으로 사용"
+        ],
+        "consequences": [
+          "체크포인트 크기는 커지지만 에이전트와 장치 사이의 이식성이 높아진다.",
+          "부모 ID는 상태 복원이 아니라 이력과 분기 추적에 사용한다."
+        ],
+        "supersedes": [],
+        "evidence_refs": [
+          {
+            "ref_id": "log-claude-authoring",
+            "excerpt": "핸드오프는 안정 체크포인트를 가리키는 얇은 형식으로 유지한다."
+          }
+        ]
+      }
+    ],
+    "progress": {
+      "completed": [
+        {
+          "summary": "세 레코드의 책임 경계를 정의했다.",
+          "result": "런타임 스냅숏은 기계 상태, 체크포인트는 의미 상태, 핸드오프는 포인터를 담당한다.",
+          "resource_refs": [
+            "res-readme"
+          ],
+          "evidence_refs": []
+        }
+      ],
+      "current": [
+        {
+          "summary": "JSON Schema와 예제를 구현하고 있다.",
+          "current_state": "공통 정의와 조건부 불변식을 작성한 상태다.",
+          "resource_refs": [
+            "res-checkpoint-schema"
+          ],
+          "evidence_refs": []
+        }
+      ]
+    },
+    "next_actions": [
+      {
+        "action_id": "01ARZ3NDEKTSV4RRFFQ69G5FAP",
+        "description": "스키마와 예제를 Draft 2020-12 검증기로 검사한다.",
+        "priority": "high",
+        "done_when": "모든 유효 예제가 통과하고 대표적인 무효 변형이 거부된다.",
+        "dependencies": [],
+        "resource_refs": [
+          "res-checkpoint-schema"
+        ],
+        "evidence_refs": []
+      }
+    ],
+    "blockers": [],
+    "open_questions": [],
+    "validations": [
+      {
+        "validation_id": "01ARZ3NDEKTSV4RRFFQ69G5FAN",
+        "kind": "manual",
+        "command": "jq empty schemas/v1/checkpoint.schema.json",
+        "cwd": {
+          "repo_id": "ai-kit-local",
+          "path": "."
+        },
+        "outcome": "passed",
+        "exit_code": 0,
+        "summary": "체크포인트 스키마 파일이 올바른 JSON인지 확인했다.",
+        "observed_at": "2026-08-03T06:04:00Z",
+        "evidence_refs": []
+      }
+    ],
+    "relevant_resources": [
+      {
+        "resource_id": "res-readme",
+        "locator": {
+          "kind": "repo_path",
+          "repo_id": "ai-kit-local",
+          "path": "README.md"
+        },
+        "relation": "modified",
+        "role": "documentation",
+        "note": "전체 시스템 구조와 세 레코드의 관계를 설명한다.",
+        "media_type": "text/markdown",
+        "format": "markdown",
+        "extensions": {}
+      },
+      {
+        "resource_id": "res-checkpoint-schema",
+        "locator": {
+          "kind": "repo_path",
+          "repo_id": "ai-kit-local",
+          "path": "schemas/v1/checkpoint.schema.json"
+        },
+        "relation": "created",
+        "role": "specification",
+        "note": "체크포인트 정본의 구조와 조건부 불변식을 정의한다.",
+        "media_type": "application/schema+json",
+        "format": "json-schema",
+        "extensions": {}
+      }
+    ]
+  },
+  "context_digest": "sha256:17d257f13fe4301616133fee4d214f4e4eec9d72f4a3e5f6fcfd5217d7cefb8b",
+  "workspace": {
+    "primary_repo_id": "ai-kit-local",
+    "repositories": [
+      {
+        "repo_id": "ai-kit-local",
+        "working_copy_id": "ai-kit-personal-main",
+        "observed_at": "2026-08-03T06:00:00Z",
+        "object_format": "sha1",
+        "head": {
+          "state": "attached",
+          "symbolic_ref": "refs/heads/main",
+          "oid": "0123456789abcdef0123456789abcdef01234567"
+        },
+        "operation": {
+          "kind": "none"
+        },
+        "worktree": {
+          "state": "dirty",
+          "fingerprint": {
+            "profile": "ctx-git-worktree-v1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        },
+        "runtime_snapshot_id": "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+      }
+    ]
+  },
+  "content_digest": "sha256:8699fb26c336cfe660051b38c50902ca4668b6d1f450a9b4860740b92d59b37b",
+  "extensions": {}
+}

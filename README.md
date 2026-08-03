@@ -23,9 +23,9 @@
 2. **`ctx` CLI가 유일한 공통 코어다.** 스킬은 사용자 의도를 해석하고 현재 대화의 의미를 정리하며, 저장과 조회 규칙은 CLI가 담당한다.
 3. **개인 작업 컨텍스트를 팀 Git 저장소에 넣지 않는다.** 컨텍스트는 저장소 바깥의 사이드카 저장소에서 관리한다.
 4. **코드의 정본은 기존 Git이다.** `ctx`는 커밋, 브랜치, 작업 트리 상태를 참조하지만 코드를 대신 동기화하거나 자동으로 병합하지 않는다.
-5. **체크포인트는 추가 전용이다.** 기존 기록을 덮어쓰지 않고 부모 체크포인트를 가진 새 기록을 만든다.
+5. **체크포인트는 추가 전용이다.** 기존 기록을 덮어쓰지 않는다. 최초 기록은 부모가 없고, 일반 기록은 부모가 하나이며, 분기 병합 기록은 부모를 둘 이상 가질 수 있다.
 6. **의미 있는 핸드오프 시점은 사용자가 결정할 수 있다.** 자동 처리는 기계적 상태 보존을 보조하며, 안정 핸드오프는 명시적 요청을 가장 확실한 경로로 삼는다.
-7. **에이전트에는 경로 목록만 반환하지 않는다.** `resume` 결과 전체가 현재 앱의 컨텍스트에 들어가며, 에이전트는 핸드오프에 적힌 관련 파일을 필요에 따라 직접 읽는다.
+7. **에이전트에는 경로 목록만 반환하지 않는다.** `resume`이 체크포인트에서 만든 결과 전체가 현재 앱의 컨텍스트에 들어가며, 에이전트는 체크포인트의 관련 자료를 필요에 따라 직접 읽는다.
 
 ## 3. 시스템 구조
 
@@ -68,19 +68,23 @@ flowchart LR
           manifest.yaml
           handoff.md
           checkpoints/
-            <checkpoint-id>.md
+            <checkpoint-id>.json
           runtime/
             snapshots/
+              <snapshot-id>.json
             bindings/
 ```
 
 - `repo.yaml`: 저장소 식별 정보와 알려진 로컬 작업 디렉터리의 매핑
 - `manifest.yaml`: 작업 제목, 상태, 별칭, 체크포인트 헤드, 스키마 버전
-- `handoff.md`: 에이전트가 바로 읽을 수 있는 최신 안정 상태의 구체화된 문서
-- `checkpoints/*.md`: YAML 머리말과 Markdown 본문으로 구성된 추가 전용 기록
-- `runtime/`: 자동 스냅숏과 앱별 임시 바인딩처럼 재생성 가능한 로컬 상태
+- `handoff.md`: 안정 체크포인트를 가리키는 얇은 머리말과 고정된 재개 안내문
+- `checkpoints/*.json`: 에이전트가 독립적으로 작업을 재개할 수 있는 추가 전용 정본
+- `runtime/snapshots/*.json`: Git과 세션에서 자동 수집한 기계적 관측값
+- `runtime/bindings/`: 앱별 활성 작업과 세션의 재생성 가능한 로컬 바인딩
 
-체크포인트는 덮어쓰지 않는 작업 이력의 정본이다. 두 장치나 두 에이전트에서 여러 헤드가 생기면 모두 보존하고, `resume`은 사용할 헤드를 선택하게 한다. `manifest.yaml`과 `handoff.md`를 동기화할지 체크포인트에서 다시 만들지는 MVP 저장소 설계 단계에서 확정한다. 어느 방식을 택하더라도 마지막 쓰기 우선 방식으로 다른 체크포인트를 버리지 않는다.
+JSON 레코드가 교환 규격의 정본이고 Markdown은 파생 표현이다. 체크포인트는 덮어쓰지 않는 작업 이력의 정본이다. 두 장치나 두 에이전트에서 여러 헤드가 생기면 모두 보존하고, `resume`은 사용할 헤드를 선택하게 한다. `manifest.yaml`과 `handoff.md`는 체크포인트에서 다시 만들 수 있어야 한다. 마지막 쓰기 우선 방식으로 다른 체크포인트를 버리지 않는다.
+
+정확한 v1 필드, 조건부 규칙, 해시 계산법, 예제는 [ctx v1 스키마](schemas/v1/README.md)를 따른다.
 
 ## 5. 저장소와 작업 식별
 
@@ -96,7 +100,7 @@ flowchart LR
 payments-api-7f31c92a
 ```
 
-원격이 없는 저장소에는 로컬 식별자를 자동 발급하고, 나중에 원격 URL이 생기거나 기존 `repo-id`를 확인하면 해당 식별자에 연결할 수 있게 한다.
+원격이 없는 저장소에는 로컬 식별자를 자동 발급한다. 나중에 원격 URL이 생기거나 기존 `repo-id`와의 대응 관계가 확인되면 로컬 식별자를 해당 `repo-id`에 연결한다.
 
 ### `task-id`
 
@@ -120,7 +124,7 @@ payments-api-7f31c92a
 
 1. 사용자가 명시한 `task-id` 또는 외부 별칭
 2. 현재 저장소에 대한 로컬 활성 작업 바인딩
-3. 현재 저장소에서 가장 최근에 사용한 안정 작업
+3. 현재 저장소에서 가장 최근에 사용한 안정 체크포인트가 있는 작업
 
 같은 우선순위의 후보가 여러 개면 임의로 선택하지 않고 후보를 보여 준다.
 
@@ -155,7 +159,7 @@ ctx에서 이 저장소의 최근 작업을 이어서 해 줘.
 2. 동기화가 설정되어 있으면 `ctx resume`이 원격 변경을 먼저 가져온다.
 3. CLI가 최신 안정 체크포인트와 현재 Git 상태의 차이를 계산한다.
 4. 제한된 크기의 Markdown 결과가 도구 출력으로 현재 에이전트 컨텍스트에 들어간다.
-5. 에이전트가 핸드오프의 관련 파일을 필요에 따라 읽고 작업을 계속한다.
+5. 에이전트가 체크포인트에 기록된 관련 자료를 필요에 따라 읽고 작업을 계속한다.
 
 CLI는 브랜치를 바꾸거나 패치를 적용하지 않는다. 예상한 Git 상태와 현재 상태가 다르면 그 차이를 먼저 알린다.
 
@@ -171,12 +175,12 @@ CLI는 브랜치를 바꾸거나 패치를 적용하지 않는다. 예상한 Git
 스킬은 현재 대화에서 다음 의미 정보를 추출한다.
 
 ```text
-goal, constraints, decisions, rationale,
-done, current, next, blockers, validation,
-relevant_paths
+summary, objective, constraints, assumptions, findings,
+decisions, progress, next_actions, blockers, open_questions,
+validations, relevant_resources
 ```
 
-CLI는 여기에 저장소, 브랜치, HEAD, 작업 트리 상태, 변경 파일 등의 기계적 정보를 직접 추가한다. 저장이 끝나면 새 체크포인트 ID를 반환한다.
+CLI는 여기에 저장소, 브랜치, HEAD, 작업 트리 상태와 지문 등의 기계적 정보를 직접 추가한다. 전체 변경 목록은 런타임 스냅숏에 저장하고, 체크포인트에는 재개에 필요한 Git 기준점과 의미 있는 관련 자료를 저장한다. 저장이 끝나면 새 체크포인트 ID를 반환한다.
 
 ### 다른 에이전트 또는 장치로 핸드오프
 
@@ -190,7 +194,7 @@ Codex에서 이어갈 수 있게 핸드오프해 줘.
 `handoff`는 다음을 한 번에 수행한다.
 
 1. 의미 체크포인트를 생성한다.
-2. 최신 `handoff.md`를 갱신한다.
+2. 새 체크포인트를 가리키는 `handoff.md`를 다시 생성한다.
 3. 활성 작업 바인딩을 갱신한다.
 4. 설정된 경우 원격 동기화를 실행한다.
 
@@ -200,17 +204,19 @@ Codex에서 이어갈 수 있게 핸드오프해 줘.
 
 | 종류 | 생성 시점 | 포함 내용 | 용도 |
 |---|---|---|---|
-| 런타임 스냅숏 | 저장소를 해석하는 모든 `ctx` 명령과 지원되는 앱 훅에서 디바운스하여 자동 생성 | Git 및 세션 메타데이터 | 예기치 않은 종료 뒤 상태 복구 보조 |
-| 의미 체크포인트 | 사용자가 현재 지점을 저장해 달라고 명시적으로 요청할 때 | 목표, 결정, 진행 상황, 다음 행동 | 작업 이력 보존 |
-| 안정 핸드오프 | 에이전트 또는 장치 전환 전 사용자가 명시적으로 요청할 때 | 검토된 의미 정보와 Git 상태 | `resume`의 기본 입력 |
+| 런타임 스냅숏 | 저장소를 해석하는 모든 `ctx` 명령과 지원되는 앱 훅에서 디바운스하여 자동 생성 | 단일 장치와 작업 사본의 상세 Git 상태, 세션 및 로그 참조 | 예기치 않은 종료 뒤 상태 복구 보조 |
+| 의미 체크포인트 | 사용자가 현재 지점을 저장해 달라고 명시적으로 요청할 때 | 자체 완결형 목표, 결정, 진행 상황, 다음 행동, 검증, Git 기준점 | 작업 이력과 재개의 정본 |
+| 안정 핸드오프 | 에이전트 또는 장치 전환 전 사용자가 명시적으로 요청할 때 | 완전하고 안정적인 체크포인트를 가리키는 얇은 포인터 | `resume`의 기본 입력 |
 
 자동 갱신은 두 층으로 나눈다.
 
-- MVP는 저장소를 해석하는 모든 `ctx` 명령에서 마지막 런타임 스냅숏과 현재 Git 상태를 비교하고, 상태가 바뀌었으면 새 스냅숏을 저장한다. 따라서 다음 스킬 호출 시점에는 상태가 보완된다.
+- MVP는 저장소를 해석하는 모든 `ctx` 명령에서 마지막 런타임 스냅숏과 현재 Git 상태를 비교하고, 상태가 바뀌었으면 새 스냅숏을 저장한다. 따라서 다음 스킬 호출 시점에는 변경된 상태가 새 스냅숏으로 저장된다.
 - 앱이 지원하면 `Stop`, `PreCompact`, `SessionEnd` 같은 수명 주기 시점에 디바운스된 `ctx snapshot`을 호출한다. 이 훅은 Git과 세션 메타데이터만 저장하며 대화의 의미를 요약하지 않는다. 모든 에이전트 도구 실행을 가로채는 기능은 전제로 삼지 않는다.
 - 대화의 의미를 담는 체크포인트와 안정 핸드오프의 시점은 사용자가 정한다. 스킬은 의미 있는 완료 지점에서 저장을 제안할 수 있지만, 사용자가 요청한 경우에만 생성한다.
 
-각 체크포인트는 `parent_id`, `checkpoint_kind`, `stability`를 가진다. `resume`의 기본 대상은 `stability: stable`인 헤드다. 두 장치나 두 에이전트가 같은 부모에서 각각 기록하면 분기를 감지하고, 어느 쪽을 이어갈지 사용자가 선택한다.
+각 체크포인트는 `parent_ids`, `purpose`, `stability`, `work_status`, `capture.completeness`를 가진다. 체크포인트는 부모와의 차이만 기록하는 델타가 아니라 그 시점의 전체 상태다. 일반 체크포인트는 부모를 최대 하나 가지며, 분기를 합치는 `purpose: merge` 체크포인트만 부모를 둘 이상 가진다. `resume`의 기본 대상은 `stability: stable`인 헤드다. 두 장치나 두 에이전트가 같은 부모에서 각각 기록하면 분기를 감지하고, 어느 쪽을 이어갈지 사용자가 선택한다.
+
+제품과 세션은 닫힌 열거형 대신 `producer.system`과 `session_refs[].system`의 개방형 식별자로 표현한다. 각 세션은 불투명한 세션 ID와 선택적인 로그 참조를 가질 수 있다. 로그 위치는 저장소 상대 경로, ctx 저장소 상대 경로, 특정 장치의 홈 디렉터리 상대 경로 또는 URI로 표현한다. 로그는 근거 확인과 복구를 위한 보조 자료이며, 로그가 없어도 체크포인트만으로 작업을 재개할 수 있어야 한다.
 
 ## 8. CLI 계약
 
@@ -223,7 +229,7 @@ ctx task close --cwd . --task <task-id> --json
 ctx resolve --cwd . --client claude --json
 ctx resume --cwd . --client codex --format markdown --budget 6000
 ctx snapshot --cwd . --client claude --json
-ctx checkpoint --cwd . --client claude --kind semantic --input-format json --stdin --json
+ctx checkpoint --cwd . --client claude --purpose progress --input-format json --stdin --json
 ctx handoff --cwd . --client claude --target codex --sync --input-format json --stdin --json
 ctx status --cwd . --json
 ctx export --cwd . --task <task-id> --output <bundle-path> --json
@@ -237,56 +243,43 @@ ctx doctor --json
 - `stdout`: 요청한 Markdown 또는 버전이 있는 JSON 데이터만 출력한다.
 - `stderr`: 사람이 읽는 진단 메시지를 출력한다.
 - 성공 시에는 종료 코드 `0`을, 실패 시에는 실패 종류별로 정해진 0이 아닌 종료 코드를 반환한다.
-- `checkpoint`와 `handoff`의 의미 정보는 버전이 있는 JSON 스키마로 표준 입력에서 받아 긴 셸 인자와 임시 프롬프트 파일을 피한다.
-- 작업 ID, 부모 ID, 체크포인트 종류, 안정성, 의미 정보 해시, Git 지문이 모두 같으면 중복 체크포인트를 만들지 않는다. 의미 체크포인트와 안정 핸드오프 또는 서로 다른 부모의 체크포인트는 내용이 같아도 별개의 기록으로 보존한다.
+- `checkpoint`와 `handoff`는 스킬이 추출한 의미 컨텍스트를 같은 캡처 입력 계약에 따라 표준 입력에서 받는다. CLI가 작업 및 체크포인트 ID, 부모, 생성 시각, Git 기준점과 해시를 채우므로, 스킬이 저장 레코드 전체를 만들게 하지 않는다. `handoff`는 입력을 완전한 `purpose: handoff`, `stability: stable` 체크포인트로 저장하고, 같은 트랜잭션에서 대상과 동기화 의도를 반영한 얇은 포인터 레코드를 생성한다. 의미 정보는 핸드오프 레코드가 아니라 새 체크포인트에만 들어간다.
+- 작업 ID, 정렬한 부모 ID 집합, 생성 목적, 안정성, 작업 상태, 캡처 상태, `context_digest`와 저장소별 Git 기준점이 모두 같으면 중복 체크포인트를 만들지 않는다. 생성 목적이 다르거나 부모 집합이 다른 체크포인트는 내용이 같아도 별개의 기록으로 보존한다.
 
 `export`와 `import`는 버전이 있는 이식용 번들로 작업 메타데이터와 체크포인트를 내보내고 가져온다. 이는 일반적인 에이전트 재개 경로가 아니라 수동 이전과 백업을 위한 데이터 이동 인터페이스다.
 
 ## 9. 핸드오프 문서 계약
 
-`handoff.md`에는 적어도 다음 정보가 있어야 한다.
+`handoff.md`는 의미 컨텍스트를 중복 저장하지 않는다. YAML 머리말은 다음과 같이 특정 체크포인트와 얇은 본문을 식별한다.
 
 ```markdown
 ---
 schema_version: 1
-task_id: 01K2M7V7FQ8YV6K8M6D2J1A4XZ
-checkpoint_id: 01K2M8A3G4D4T2M0W9Z7J3P6BK
-parent_id: 01K2M80JY11SSTJ62C7M6N0E1A
-checkpoint_kind: handoff
-stability: stable
-title: 결제 검증 개선
-status: active
-source_client: claude
-source_session_ref: optional-opaque-reference
-created_at: 2026-08-03T14:30:00+09:00
-repository:
-  repo_id: payments-api-7f31c92a
-  branch: feature/payment-validation
-  head: 2f27c418
-  dirty: true
-  worktree_fingerprint: sha256:...
+record_type: "ctx.handoff"
+handoff_id: "01K2M8B9NG79XDB0QAH5G4PMYR"
+task_id: "01K2M7V7FQ8YV6K8M6D2J1A4XZ"
+checkpoint_id: "01K2M8A3G4D4T2M0W9Z7J3P6BK"
+checkpoint_digest: "sha256:..."
+generated_at: "2026-08-03T05:30:00Z"
+producer:
+  actor_type: "cli"
+  system: "ctx.cli"
+  device_id: "personal-macbook"
+  extensions: {}
+target:
+  system: "com.openai.codex"
+  interface: "desktop"
+render_profile: "ctx-handoff-markdown-v1"
+rendered_body_digest: "sha256:..."
+extensions: {}
 ---
 
-# 목표
+# ctx handoff
 
-# 제약 조건
-
-# 결정과 근거
-
-# 완료한 작업
-
-# 현재 작업
-
-# 다음 행동
-
-# 막힌 점
-
-# 검증 결과
-
-# 관련 경로
+Load checkpoint `01K2M8A3G4D4T2M0W9Z7J3P6BK` for task `01K2M7V7FQ8YV6K8M6D2J1A4XZ` through `ctx resume`.
 ```
 
-관련 경로에는 구현 파일, 문서, 테스트 등 다음 에이전트가 읽을 가능성이 높은 항목을 기록한다. 이를 위한 별도의 경로 조회 API는 만들지 않는다.
+본문은 작업 ID와 체크포인트 ID를 이용한 고정 안내문일 뿐이며 의미 정보를 담지 않는다. `ctx resume`이 참조된 체크포인트를 읽어 목표, 결정, 진행 상황, 다음 행동, 검증, Git 기준점과 세션 참조를 현재 앱의 컨텍스트로 반환한다. 관련 자료에는 다음 에이전트가 읽을 가능성이 높은 구현 파일, 문서, 테스트 등을 기록하며, 이를 위한 별도의 경로 조회 API는 만들지 않는다. 정확한 직렬화와 해시 규칙은 [handoff Markdown v1](schemas/v1/handoff-rendering.md)을 따른다.
 
 ## 10. Git 저장소와의 관계
 
@@ -310,7 +303,7 @@ repository:
 
 원격 동기화는 선택 기능이다. 설정하지 않으면 모든 데이터는 로컬 사이드카 저장소에만 남는다.
 
-동기화의 중심은 추가 전용 체크포인트와 작업을 식별하는 데 필요한 작은 메타데이터다. `manifest.yaml`과 `handoff.md`를 그대로 동기화할지 체크포인트에서 다시 만들지는 MVP 저장소 설계 단계에서 결정한다. 검색 색인과 런타임 상태는 각 장치에서 다시 만들 수 있어야 한다.
+동기화의 중심은 추가 전용 체크포인트와 작업을 식별하는 데 필요한 작은 메타데이터다. `manifest.yaml`과 `handoff.md`는 체크포인트에서 다시 만들 수 있는 파생 자료다. 검색 색인과 런타임 상태도 각 장치에서 다시 만들 수 있어야 한다.
 
 동기화가 설정되어 있으면 `ctx resume`은 작업을 선택하기 전에 원격 변경을 가져온다. 가져오지 못하면 오래된 로컬 상태를 조용히 최신 상태로 간주하지 않고, 로컬 자료를 사용 중임을 결과에 명시한다.
 
@@ -364,11 +357,11 @@ ai-kit/
 
 - Git 원격 기반 `repo-id` 식별과 로컬 경로 매핑
 - ULID 기반 작업 자동 생성, 선택, 목록 조회
-- 추가 전용 체크포인트와 `handoff.md` 생성
+- 추가 전용 JSON 체크포인트와 얇은 `handoff.md` 생성
 - Git 브랜치, HEAD, 변경 파일, 작업 트리 지문 수집 및 비교
 - `resume`, `checkpoint`, `handoff`, `status`, `export`, `import`, `sync`, `doctor` CLI
 - 공통 행동 명세를 따르는 Claude Code용 및 Codex용 스킬
-- 모든 `ctx` 저장소 해석 시점의 기계적 런타임 스냅숏과 지원되는 수명 주기 훅
+- `ctx`가 저장소를 해석하는 모든 시점에 생성하는 기계적 런타임 스냅숏과 지원되는 수명 주기 훅
 - 선택적 파일 기반 원격 동기화
 
 ### 제외
@@ -391,14 +384,14 @@ ai-kit/
 2. `ctx`가 작업과 체크포인트를 저장하고 `handoff.md`를 만든다.
 3. 이미 열려 있는 Codex에서 사용자가 같은 작업의 재개를 요청한다.
 4. 동기화가 설정된 경우 `resume`이 원격 변경을 가져온다.
-5. Codex 스킬이 최신 핸드오프를 컨텍스트로 받고 현재 저장소 상태와의 차이를 보여 준다.
+5. Codex 스킬이 핸드오프가 가리키는 체크포인트를 컨텍스트로 받고 현재 저장소 상태와의 차이를 보여 준다.
 6. 사용자는 두 번 이내의 명시적 행동으로 실제 개발 작업을 계속한다.
 
 장치 간 동기화를 설정했다면 동일한 흐름이 다른 Mac에서도 동작해야 한다.
 
 ## 15. 구현 순서
 
-1. 스키마와 로컬 사이드카 저장소를 정의한다.
+1. 정의한 v1 스키마에 맞춰 로컬 사이드카 저장소를 구현한다.
 2. Git 저장소 식별과 상태 수집을 구현한다.
 3. 작업, 체크포인트, 핸드오프 CLI를 구현한다.
 4. `resume`의 Git 상태 비교와 컨텍스트 예산 처리를 구현한다.
