@@ -4,6 +4,20 @@
 
 > **현재 상태:** v1 JSON Schema, Go 1.26 기반 `ctx` CLI와 다섯 Agent Skills가 구현되어 있다. CLI는 작업·체크포인트·Git 관측·핸드오프·재개·스냅숏·파일 동기화를 파일 기반 사이드카에 저장한다. 다음 단계는 실제 Codex·Claude Code 간 사용자 시나리오 검증이다.
 
+## 설치
+
+Go 1.26 이상이 준비된 macOS 또는 Unix 환경에서 다음 명령을 실행한다.
+
+```bash
+./scripts/install.sh
+```
+
+기본 설치 위치는 `~/.local/bin/ctx`다. 다른 위치나 명시적 버전이 필요하면
+`--bin-dir`와 `--version`을 사용한다. 설치 위치가 `PATH`에 없으면 스크립트가
+`PATH` 또는 `CTX_BIN` 설정 방법을 출력한다. macOS GUI 앱은 이미 실행 중인
+프로세스의 환경을 바꿀 수 없으므로 Codex와 Claude Code의 실행 환경에 해당
+설정을 적용한 뒤 앱을 완전히 재시작한다.
+
 ## 제품 경계
 
 ```mermaid
