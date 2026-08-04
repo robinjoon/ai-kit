@@ -28,9 +28,12 @@ Git.
 
 1. Run `<ctx> <global-args> --json resolve` and require an active task.
 2. Run `<ctx> <global-args> --json status`. If it reports multiple current
-   checkpoint `heads`, present those exact IDs and obtain a user choice or create
-   a user-approved merge checkpoint first. Parent selection is based on current
-   heads, not only stable heads.
+   checkpoint `heads`, inspect their stability in `checkpoint_graph` and present
+   the exact IDs. When more than one stable head would remain, require a
+   user-approved merge checkpoint before handoff; selecting only one stable branch
+   would leave the receiver unable to resume unambiguously. With at most one stable
+   head, obtain the user's current-head choice when a parent is still ambiguous.
+   Parent selection is based on current heads, not only stable heads.
 3. Read [references/capture-input.md](references/capture-input.md) completely.
 4. Review every semantic section and construct a complete, self-contained capture.
    If any section cannot be reviewed, stop and state what is missing. Never mark
@@ -59,7 +62,9 @@ the user must prepare code through their normal Git workflow.
 
 ## Handle synchronization and failures
 
-- On exit 4, show task or head candidates and wait; never auto-select.
+- On exit 4, show task or head candidates and wait; never auto-select. If handoff
+  reports multiple stable heads, create a semantic merge checkpoint only after the
+  user approves the heads and integrated context, then retry handoff.
 - On exit 5, correct generated capture once only when actionable.
 - On exit 8 from `handoff --sync`, treat the local handoff as created and the push
   as failed. The CLI withholds successful handoff JSON in this path, so do not

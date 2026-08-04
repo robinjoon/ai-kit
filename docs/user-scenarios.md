@@ -42,15 +42,17 @@ sequenceDiagram
     participant Store as 사이드카 저장소
 
     User->>App: 새 작업을 시작해 줘
-    App->>Skill: 시작 의도 전달
-    Skill->>CLI: task create
+    App->>Skill: ctx-start 호출
+    Skill->>CLI: resolve
     CLI->>Git: 저장소 식별 및 상태 관측
+    Skill->>CLI: task create
     CLI->>Store: 작업 ID 생성 및 앱에 바인딩
     CLI-->>App: 활성 작업 반환
 
     Note over User,App: 개발 작업 진행
 
     User->>App: 여기까지 체크포인트로 저장해 줘
+    App->>Skill: ctx-checkpoint 호출
     Skill->>CLI: resolve
     CLI->>Git: 현재 HEAD와 작업 트리 관측
     Skill->>CLI: checkpoint + 의미 컨텍스트
@@ -76,13 +78,13 @@ sequenceDiagram
     participant Codex as Codex
 
     User->>Claude: Codex에서 이어갈 수 있게 핸드오프해 줘
-    Claude->>Ctx: resolve 후 handoff
+    Claude->>Ctx: /ctx-handoff<br/>resolve·status 후 handoff
     Ctx->>Git: 현재 Git 기준점 관측
     Ctx->>Ctx: 안정 체크포인트와 핸드오프 생성
     Ctx-->>Claude: 저장 완료
 
     User->>Codex: 최근 작업을 이어서 해 줘
-    Codex->>Ctx: resume
+    Codex->>Ctx: $ctx-resume<br/>resume
     Ctx->>Git: 체크포인트 기준점과 현재 상태 비교
     Ctx-->>Codex: 목표·결정·진행·다음 행동·Git 차이
     Codex-->>User: 이어서 할 작업 제시 또는 실행
@@ -105,7 +107,7 @@ flowchart LR
     end
 
     GIT_REMOTE["Git 원격"]
-    CTX_REMOTE["ctx 동기화 저장소"]
+    CTX_REMOTE["ctx 파일 동기화 경로<br/>공유 디렉터리"]
 
     subgraph B["Mac B"]
         B_GIT["Git 작업 사본"]
@@ -120,6 +122,8 @@ flowchart LR
     A_CTX -->|"체크포인트 동기화"| CTX_REMOTE
     CTX_REMOTE -->|"resume 전에 가져오기"| B_CTX
 ```
+
+두 장치에서 같은 공유 디렉터리를 `CTX_SYNC_REMOTE`로 설정하거나 스킬 호출 때 파일 경로를 제공해야 한다. ctx는 네트워크 서비스나 데이터베이스를 자동으로 구성하지 않는다.
 
 1. Mac A에서 필요한 코드 상태를 기존 Git 흐름으로 원격에 보낸다.
 2. `handoff`로 안정 체크포인트를 만들고 ctx 동기화를 수행한다.
@@ -166,11 +170,11 @@ flowchart LR
     MERGE --> NEXT["통합된 다음 작업"]
 ```
 
-여기서 merge 체크포인트는 **컨텍스트 계보의 통합**이다. 실제 코드 브랜치의 병합은 사용자가 기존 Git 도구로 별도로 수행한다.
+여기서 merge 체크포인트는 **컨텍스트 계보의 통합**이다. 실제 코드 브랜치의 병합은 사용자가 기존 Git 도구로 별도로 수행한다. 한쪽 헤드를 명시해 계속 재개할 수는 있지만, 다른 안정 헤드를 남긴 채 핸드오프하면 받는 쪽의 기본 재개가 다시 모호해진다. 따라서 핸드오프 전에는 사용자가 승인한 merge 체크포인트로 안정 헤드를 하나로 통합한다.
 
 ## 시나리오 6. 앱이 예기치 않게 종료된다
 
-제품 스킬이나 지원되는 앱 훅이 `ctx snapshot`을 호출해 저장한 런타임 스냅숏은 마지막으로 관측한 기계 상태를 알려 준다. 그러나 의미 체크포인트를 대신하지는 않는다.
+`ctx snapshot`을 명시적으로 호출해 둔 경우 런타임 스냅숏은 마지막으로 관측한 기계 상태를 알려 준다. 현재 다섯 Agent Skills는 이 명령을 자동 호출하지 않으며, 예기치 않은 종료 자체가 스냅숏을 생성하지도 않는다. 앱 수명 주기 훅 연결은 실제 제품 종단 간 검증 범위에 남아 있고, 스냅숏은 의미 체크포인트를 대신하지 않는다.
 
 ```mermaid
 sequenceDiagram
@@ -179,7 +183,7 @@ sequenceDiagram
     participant Git as Git 작업 사본
     participant Store as 사이드카 저장소
 
-    App->>Ctx: 제품 스킬 또는 수명 주기 훅이 snapshot 호출
+    App->>Ctx: 명시적으로 연결한 snapshot 호출
     Ctx->>Git: HEAD·작업 트리·진행 중 작업 관측
     Ctx->>Store: 런타임 스냅숏 추가
     Note over App: 예기치 않은 종료
@@ -189,21 +193,23 @@ sequenceDiagram
     Ctx-->>App: 의미 컨텍스트와 복구에 필요한 상태 차이
 ```
 
-- 마지막 안정 체크포인트 이후의 대화 의미는 자동 스냅숏만으로 완전히 복원되지 않을 수 있다.
+- 마지막 안정 체크포인트 이후의 대화 의미는 런타임 스냅숏만으로 완전히 복원되지 않을 수 있다.
 - 런타임 스냅숏과 선택적 세션 로그는 근거 확인과 복구를 돕는 자료다.
 - 독립적인 재개의 정본은 항상 자체 완결형 체크포인트다.
 
 ## 사용자 의도별 진입점
 
-아래 이름은 MVP에서 목표로 하는 공통 사용자 의도다. 실제 스킬 이름과 설치 방식은 플랫폼 구현에서 확정한다.
+다섯 Agent Skills의 이름과 호출 방식은 구현되어 있다. [설치 절차](../README.md#설치)는 `ctx` CLI와 두 제품의 사용자 스킬 진입점을 함께 준비하며, Claude Code와 Codex는 같은 스킬 정본을 사용한다.
 
-| 사용자의 말 | 의도 | 목표 CLI 동작 |
-|---|---|---|
-| “새 작업을 시작해 줘.” | 새 작업 생성 | `ctx task create` |
-| “여기까지 저장해 둬.” | 의미 체크포인트 생성 | `ctx checkpoint` |
-| “Codex에서 이어가게 넘겨 줘.” | 안정 핸드오프 생성 | `ctx handoff` |
-| “최근 작업을 이어서 해 줘.” | 작업 재개 | `ctx resume` |
-| “현재 ctx 상태를 보여 줘.” | 작업·Git·동기화 상태 확인 | `ctx status` |
+| 사용자의 말 | Claude Code | Codex | 주요 CLI 흐름 |
+|---|---|---|---|
+| “새 작업을 시작해 줘.” | `/ctx-start` | `$ctx-start` | `resolve` → `task create` |
+| “여기까지 저장해 둬.” | `/ctx-checkpoint` | `$ctx-checkpoint` | `resolve` → `checkpoint` |
+| “Codex에서 이어가게 넘겨 줘.” | `/ctx-handoff` | `$ctx-handoff` | `resolve` → `status` → `handoff` |
+| “최근 작업을 이어서 해 줘.” | `/ctx-resume` | `$ctx-resume` | 필요시 `sync` → `resume` |
+| “현재 ctx 상태를 보여 줘.” | `/ctx-status` | `$ctx-status` | `status` |
+
+`handoff`와 `resume`의 동기화는 사용자가 파일 원격을 제공했거나 `CTX_SYNC_REMOTE`를 설정한 경우에만 수행한다.
 
 ## 사용자가 기대해도 되는 것과 아닌 것
 
@@ -217,6 +223,7 @@ sequenceDiagram
 ## 관련 규격
 
 - [프로젝트 개요와 MVP 범위](../README.md)
+- [ctx 스킬 행동 계약](skill-behavior-contract.md)
 - [ctx v1 데이터 계약](../schemas/v1/README.md)
 - [handoff Markdown v1](../schemas/v1/handoff-rendering.md)
 - [Git 작업 트리 지문 v1](../schemas/v1/worktree-fingerprint.md)

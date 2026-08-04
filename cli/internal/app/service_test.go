@@ -171,7 +171,7 @@ func TestHandoffTargetChangeIsNotDeduplicated(t *testing.T) {
 		t.Fatalf("same-target retry = %#v, want checkpoint %s deduplicated", retry, firstHandoff.CheckpointID)
 	}
 	target := Record{"system": "com.openai.codex", "interface": "cli"}
-	handoff, err := source.Handoff(context.Background(), CheckpointRequest{CWD: t.TempDir(), TaskID: task.TaskID, Parents: []string{base.CheckpointID}, Input: captureInput(t, "repo-test")}, target)
+	handoff, err := source.Handoff(context.Background(), CheckpointRequest{CWD: t.TempDir(), TaskID: task.TaskID, Parents: []string{firstHandoff.CheckpointID}, Input: captureInput(t, "repo-test")}, target)
 	if err != nil {
 		t.Fatal(err)
 	}

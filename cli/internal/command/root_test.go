@@ -639,6 +639,60 @@ func TestHandoffSyncWithoutRemoteFailsBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestHandoffMalformedRemoteUsesSyncExitAfterLocalCreation(t *testing.T) {
+	repository := t.TempDir()
+	command := exec.Command("git", "init", "-q")
+	command.Dir = repository
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
+	storeRoot := t.TempDir()
+	sidecar := store.New(storeRoot)
+	service := app.New(sidecar, app.Config{Client: "ctx.cli", DeviceID: "test-device"})
+	resolved, err := service.Resolve(context.Background(), repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := service.CreateTask(context.Background(), repository, "Split-state handoff", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := json.Marshal(commandCaptureInput(t, resolved.RepoID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputPath := filepath.Join(t.TempDir(), "capture.json")
+	if err := os.WriteFile(inputPath, input, 0600); err != nil {
+		t.Fatal(err)
+	}
+	remoteFile := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(remoteFile, []byte("not a ctx store"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	handoff := NewRoot("test-version")
+	handoff.SetOut(&bytes.Buffer{})
+	handoff.SetArgs([]string{
+		"--cwd", repository,
+		"--store", storeRoot,
+		"handoff",
+		"--sync",
+		"--remote", remoteFile,
+		"--input", inputPath,
+	})
+	err = handoff.Execute()
+	if err == nil || !errors.Is(err, app.ErrSync) || ExitCode(err) != ExitSync {
+		t.Fatalf("malformed remote handoff error = %v, exit %d; want sync failure", err, ExitCode(err))
+	}
+	records, err := sidecar.ListJSON(filepath.Dir(sidecar.CheckpointPath(resolved.RepoID, task.TaskID, "placeholder")))
+	if err != nil || len(records) != 1 {
+		t.Fatalf("local handoff checkpoints = %#v, err=%v", records, err)
+	}
+	if _, err := os.Stat(sidecar.HandoffPath(resolved.RepoID, task.TaskID)); err != nil {
+		t.Fatalf("local handoff pointer was not created: %v", err)
+	}
+}
+
 func TestRootHelp(t *testing.T) {
 	var output bytes.Buffer
 	root := NewRoot("test-version")

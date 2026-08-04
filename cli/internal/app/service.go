@@ -733,6 +733,16 @@ func (s *Service) Handoff(ctx context.Context, request CheckpointRequest, target
 			if err != nil {
 				return err
 			}
+			stableHeads, err := StableCheckpointHeads(plan.records)
+			if err != nil {
+				return err
+			}
+			if len(stableHeads) != 1 {
+				return fmt.Errorf("%w: handoff would leave multiple stable checkpoint heads; create a merge checkpoint first", ErrAmbiguous)
+			}
+			if stableHeads[0] != plan.result.CheckpointID {
+				return fmt.Errorf("%w: handoff checkpoint would not be the current stable head; select a current head", ErrAmbiguous)
+			}
 			handoffID, content, err := s.prepareHandoffPointer(taskID, plan.result.CheckpointID, plan.result.ContentDigest, target)
 			if err != nil {
 				return err
@@ -893,7 +903,7 @@ func (s *Service) prepareCheckpointLocked(observation gitobs.Observation, taskID
 				return checkpointPlan{}, retryErr
 			}
 			if retryKey == headKey {
-				return checkpointPlan{result: checkpointResult(head)}, nil
+				return checkpointPlan{result: checkpointResult(head), records: records}, nil
 			}
 		}
 	}
@@ -903,7 +913,7 @@ func (s *Service) prepareCheckpointLocked(observation gitobs.Observation, taskID
 			return checkpointPlan{}, err
 		}
 		if key == existingKey {
-			return checkpointPlan{result: checkpointResult(existing)}, nil
+			return checkpointPlan{result: checkpointResult(existing), records: records}, nil
 		}
 	}
 	return checkpointPlan{
@@ -1667,9 +1677,17 @@ func (s *Service) Sync(ctx context.Context, cwd, remoteRoot, direction string) e
 		if err != nil {
 			return err
 		}
-		return withRemoteRepositoryLock(remoteRoot, resolved.RepoID, direction, func() error {
+		syncErr := withRemoteRepositoryLock(remoteRoot, resolved.RepoID, direction, func() error {
 			return s.syncResolved(resolved, remoteRoot, direction)
 		})
+		if syncErr == nil || errors.Is(syncErr, ErrSync) {
+			return syncErr
+		}
+		state := SyncState{Remote: remoteRoot, Direction: direction, Status: "failed", At: timestamp(s.now()), Message: "remote access: " + syncErr.Error()}
+		if stateErr := s.writeSyncState(resolved.RepoID, state); stateErr != nil {
+			return fmt.Errorf("%w: remote access: %v; record failed sync: %v", ErrSync, syncErr, stateErr)
+		}
+		return fmt.Errorf("%w: remote access: %v", ErrSync, syncErr)
 	})
 }
 

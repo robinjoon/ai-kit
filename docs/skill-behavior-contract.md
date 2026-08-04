@@ -8,7 +8,9 @@ and Claude Code; only the explicit invocation syntax and client identifier diffe
 
 The canonical sources live under `.claude/skills/`. Project-local Codex entries
 under `.agents/skills/` point to those same directories so the instructions cannot
-drift.
+drift. `scripts/install.sh` copies the five sources to the user-level shared skill
+directory and links both products' user skill entries to those same installed
+copies.
 
 | Host | Invocation | `--client` value |
 |---|---|---|
@@ -90,9 +92,11 @@ exactly four top-level fields: `input_version`, `work_status`, `capture`, and
 
 When selection is ambiguous, query `task list` or `status` and wait for the user's
 choice. For checkpoint or handoff parent selection, present current checkpoint
-`heads`. For resume, present the selected task's `stable_head_ids` from `task list`;
-this also works for an inactive task. Merge checkpoints integrate meaning only;
-they never merge code.
+`heads`. A handoff must leave exactly one stable head: when several stable heads
+exist, create a user-approved semantic merge checkpoint before handoff instead of
+selecting one branch and claiming the transfer is ready. For resume, present the
+selected task's `stable_head_ids` from `task list`; this also works for an inactive
+task. Merge checkpoints integrate meaning only; they never merge code.
 
 Use filesystem sync only when the user supplied a remote or `CTX_SYNC_REMOTE` is
 configured. If handoff sync fails, distinguish the locally created handoff from the

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,63 @@ func TestResumeIgnoresStaleOrBranchHandoffPointer(t *testing.T) {
 	}
 	if _, err := service.Resume(context.Background(), t.TempDir(), task.TaskID, "", 0); !errors.Is(err, ErrAmbiguous) {
 		t.Fatalf("branched resume error = %v, want ambiguity", err)
+	}
+}
+
+func TestHandoffRejectsBranchSelectionThatLeavesMultipleStableHeads(t *testing.T) {
+	sidecar := testStore{root: t.TempDir()}
+	service := newFakeService(sidecar, []string{
+		"01ARZ3NDEKTSV4RRFFQ69G5FAV", "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+		"01ARZ3NDEKTSV4RRFFQ69G5FAX", "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+		"01ARZ3NDEKTSV4RRFFQ69G5FAZ", "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+	})
+	task, err := service.CreateTask(context.Background(), t.TempDir(), "Branched handoff", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, err := service.Checkpoint(context.Background(), CheckpointRequest{CWD: t.TempDir(), Input: captureInput(t, "repo-test")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	leftInput := captureInput(t, "repo-test")
+	leftInput["context"].(map[string]any)["summary"] = "Stable left branch."
+	left, err := service.Checkpoint(context.Background(), CheckpointRequest{CWD: t.TempDir(), Parents: []string{base.CheckpointID}, Input: leftInput})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rightInput := captureInput(t, "repo-test")
+	rightInput["context"].(map[string]any)["summary"] = "Stable right branch."
+	right, err := service.Checkpoint(context.Background(), CheckpointRequest{CWD: t.TempDir(), Parents: []string{base.CheckpointID}, Input: rightInput})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handoffInput := captureInput(t, "repo-test")
+	handoffInput["context"].(map[string]any)["summary"] = "Attempt to hand off only the left branch."
+	_, err = service.Handoff(context.Background(), CheckpointRequest{
+		CWD:     t.TempDir(),
+		Parents: []string{left.CheckpointID},
+		Input:   handoffInput,
+	}, nil)
+	if !errors.Is(err, ErrAmbiguous) || !strings.Contains(err.Error(), "merge checkpoint") {
+		t.Fatalf("branched handoff error = %v, want merge-required ambiguity", err)
+	}
+	records, err := service.listCheckpoints("repo-test", task.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("rejected handoff wrote a checkpoint: %#v", records)
+	}
+	heads, err := StableCheckpointHeads(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{left.CheckpointID, right.CheckpointID}; !reflect.DeepEqual(heads, want) {
+		t.Fatalf("stable heads after rejected handoff = %v, want %v", heads, want)
+	}
+	if _, err := os.Stat(sidecar.HandoffPath("repo-test", task.TaskID)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("rejected handoff wrote a pointer: %v", err)
 	}
 }
 
@@ -993,6 +1051,27 @@ func TestExplicitPullMissingRemoteFailsButBothInitializesRemote(t *testing.T) {
 	state = service.lastSync("repo-test")
 	if state == nil || state.Status != "ok" {
 		t.Fatalf("initialized sync state = %#v", state)
+	}
+}
+
+func TestRemoteAccessFailureIsRecordedAsSyncFailure(t *testing.T) {
+	sidecar := testStore{root: t.TempDir()}
+	service := newFakeService(sidecar, nil)
+	if _, err := service.Resolve(context.Background(), t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	remoteFile := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(remoteFile, []byte("not a ctx store"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := service.Sync(context.Background(), t.TempDir(), remoteFile, "push")
+	if !errors.Is(err, ErrSync) || !strings.Contains(err.Error(), "remote access") {
+		t.Fatalf("remote access error = %v, want sync failure", err)
+	}
+	state := service.lastSync("repo-test")
+	if state == nil || state.Status != "failed" || state.Direction != "push" || !strings.Contains(state.Message, "remote access") {
+		t.Fatalf("remote access sync state = %#v", state)
 	}
 }
 
