@@ -1,0 +1,4 @@
+interface:
+  display_name: "ctx Start"
+  short_description: "Start and bind a portable ctx task"
+  default_prompt: "Use $ctx-start to start and bind a new ctx task for this work."

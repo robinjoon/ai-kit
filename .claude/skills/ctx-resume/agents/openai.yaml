@@ -1,0 +1,4 @@
+interface:
+  display_name: "ctx Resume"
+  short_description: "Resume a ctx task with Git-aware context"
+  default_prompt: "Use $ctx-resume to restore a task and its Git-aware continuation context."

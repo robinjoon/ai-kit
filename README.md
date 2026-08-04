@@ -2,14 +2,14 @@
 
 `ctx`는 이미 열려 있는 Claude Code와 Codex 사이에서 개발 작업의 의미 있는 상태를 이어 주는 로컬 우선 시스템이다. 각 앱의 스킬이 공통 `ctx` CLI를 호출하고, CLI가 작업·체크포인트·Git 기준점·핸드오프를 일관된 형식으로 관리한다.
 
-> **현재 상태:** v1 JSON Schema와 Go 1.26 기반 `ctx` CLI가 구현되어 있다. CLI는 작업·체크포인트·Git 관측·핸드오프·재개·스냅숏·파일 동기화를 파일 기반 사이드카에 저장한다. Claude Code와 Codex용 제품별 스킬 패키지는 다음 구현 대상이다.
+> **현재 상태:** v1 JSON Schema, Go 1.26 기반 `ctx` CLI와 다섯 Agent Skills가 구현되어 있다. CLI는 작업·체크포인트·Git 관측·핸드오프·재개·스냅숏·파일 동기화를 파일 기반 사이드카에 저장한다. 다음 단계는 실제 Codex·Claude Code 간 사용자 시나리오 검증이다.
 
 ## 제품 경계
 
 ```mermaid
 flowchart LR
     U["사용자"] --> A["Claude Code 또는 Codex"]
-    A --> S["제품별 ctx 스킬"]
+    A --> S["공통 ctx Agent Skills"]
     S --> CLI["ctx CLI"]
     CLI --> STORE["파일 기반 사이드카<br/>JSON·YAML·Markdown"]
     CLI -. "관측·비교" .-> GIT["기존 Git 작업 사본"]
@@ -37,7 +37,7 @@ flowchart LR
 
 ## 필요한 스킬
 
-Claude Code와 Codex에는 같은 사용자 의도를 제공하는 스킬을 각각 설치한다. 제품별 패키지는 공통 행동 계약을 따르되 앱의 실제 스킬 형식과 도구 호출 방식에 맞게 구현한다.
+Claude Code와 Codex가 모두 Agent Skills 형식을 사용하므로 다섯 스킬은 하나의 정본을 공유한다. 실제 파일은 `.claude/skills/`에 있고 `.agents/skills/`의 프로젝트 스킬은 같은 디렉터리를 가리킨다. Claude Code에서는 `/ctx-*`, Codex에서는 `$ctx-*`로 호출한다.
 
 | 공통 의도 | Claude Code | Codex | 책임 |
 |---|---|---|---|
@@ -46,6 +46,8 @@ Claude Code와 Codex에는 같은 사용자 의도를 제공하는 스킬을 각
 | 체크포인트 저장 | `/ctx-checkpoint` | `$ctx-checkpoint` | 대화에서 의미 상태를 캡처하고 기계 상태와 합쳐 새 체크포인트를 만든다. |
 | 핸드오프 | `/ctx-handoff` | `$ctx-handoff` | 완전한 안정 체크포인트와 대상 앱을 가리키는 핸드오프를 원자적으로 만든다. |
 | 상태 확인 | `/ctx-status` | `$ctx-status` | 활성 작업, 체크포인트 헤드, Git 차이, 동기화 상태를 설명한다. |
+
+바이너리 탐색, 최소 버전, 제품별 client ID, 캡처 경계, 종료 코드와 동기화 실패 처리는 [ctx 스킬 행동 계약](docs/skill-behavior-contract.md)을 따른다. 스킬은 `CTX_BIN`을 우선하고 없으면 `PATH`의 `ctx`를 사용하며, release `0.1.0` 이상 또는 소스 빌드 `ctx dev`를 요구한다.
 
 별도의 `ctx-sync`, `ctx-snapshot`, `ctx-merge` 사용자 스킬은 MVP에 만들지 않는다.
 
