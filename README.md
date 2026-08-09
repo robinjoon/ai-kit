@@ -1,224 +1,143 @@
 # ctx
 
-`ctx`는 이미 열려 있는 Claude Code와 Codex 사이에서 개발 작업의 의미 있는 상태를 이어 주는 로컬 우선 시스템이다. 각 앱의 스킬이 공통 `ctx` CLI를 호출하고, CLI가 작업·체크포인트·Git 기준점·핸드오프를 일관된 형식으로 관리한다.
+`ctx`는 같은 컴퓨터에서 Claude Code와 Codex가 현재 Git worktree와 branch에
+맞는 작업 컨텍스트를 이어 가게 하는 로컬 도구다.
 
-> **현재 상태:** v1 JSON Schema, Go 1.26 기반 `ctx` CLI와 다섯 Agent Skills가 구현되어 있다. CLI는 작업·체크포인트·Git 관측·핸드오프·재개·스냅숏·파일 동기화를 파일 기반 사이드카에 저장한다. 다음 단계는 실제 Codex·Claude Code 간 사용자 시나리오 검증이다.
+## MVP 기능
+
+1. repository·worktree·branch 조합마다 현재 작업 컨텍스트 하나를 유지한다.
+2. `ctx start`로 새 작업을 시작한다.
+3. 에이전트가 의미 있는 진행 뒤 `ctx checkpoint`를 자동 호출한다.
+4. `ctx resume`은 최신 체크포인트 전체와 현재 Git 차이를 반환한다.
+5. `ctx status`는 현재 작업과 마지막 저장 시점을 보여 준다.
+
+체크포인트에는 목표, 현재 요약, 결정, 다음 행동과 차단 요소만 저장한다. 각
+체크포인트는 이전 기록을 수정하지 않는 독립 JSON 파일이며, 현재 작업은 가장
+최근 체크포인트 하나만 가리킨다.
+
+## 고려하지 않는 것
+
+- 서로 다른 물리적 컴퓨터 사이의 동기화
+- 여러 에이전트의 동시 작업
+- 다중 head, `parent_ids`, merge
+- 네트워크 또는 파일 원격 저장소
+- handoff 포인터와 별도 handoff 레코드
+- 런타임 snapshot과 비정상 종료 복구
+- 여러 작업의 목록·선택·alias
+- 저장소 ID 이전과 `repo link`
+- JSON Schema, 콘텐츠 해시, 분산 잠금
+- Git checkout, commit, merge 또는 파일 수정
+
+동시에 쓰는 상황은 지원하지 않는다. Claude Code와 Codex는 한 번에 하나씩
+사용하며, 전환 전에 보내는 에이전트가 최신 체크포인트를 남긴다.
+
+같은 컴퓨터의 여러 Git worktree와 branch는 지원한다. 이들은 같은 컨텍스트를
+동시에 수정하는 주체가 아니라 서로 분리된 로컬 작업 공간으로 취급한다.
+
+## 자동 체크포인트
+
+`ctx` CLI는 백그라운드 데몬을 실행하지 않는다. 공용 Agent Skill이 다음 시점에
+사용자의 별도 저장 요청 없이 체크포인트를 만든다.
+
+- 코드나 문서의 의미 있는 변경과 검증이 끝난 뒤
+- 목표, 결정 또는 다음 행동이 바뀐 뒤
+- 응답을 끝내기 전 저장할 만한 진행이 있을 때
+- 다른 에이전트로 전환하기 전
+
+단순 질의응답이나 실제 진행이 없는 턴에는 체크포인트를 만들지 않는다.
+
+## 사용 흐름
+
+```text
+Claude Code                    로컬 ctx                     Codex
+     |                            |                            |
+     |  start / checkpoint       |                            |
+     |--------------------------->|                            |
+     |                            |       resume latest        |
+     |                            |<----------------------------|
+     |                            |---------------------------->|
+     |                            |     checkpoint after work   |
+     |                            |<----------------------------|
+```
+
+별도 handoff 명령은 없다. 보내는 쪽이 체크포인트를 만들고 받는 쪽이 최신
+체크포인트를 재개하면 전환이 끝난다.
+
+## CLI
+
+```bash
+ctx start --title "로그인 오류 수정"
+ctx checkpoint --input checkpoint.json --reason progress
+ctx resume
+ctx status
+```
+
+체크포인트 입력은 작은 JSON 객체다.
+
+```json
+{
+  "goal": "로그인 오류를 수정한다.",
+  "summary": "세션 쿠키 만료 처리를 수정했고 회귀 테스트를 추가했다.",
+  "decisions": ["만료 쿠키는 즉시 폐기한다."],
+  "next_actions": ["전체 테스트를 실행한다."],
+  "blockers": []
+}
+```
+
+`goal`과 `summary`만 필수다. CLI는 알 수 없는 필드를 거부하며 JSON Schema나
+외부 검증 라이브러리를 사용하지 않는다.
+
+기본 저장 위치는 운영체제의 사용자 설정 디렉터리 아래 `ctx/`다. 현재 Git
+위치를 관찰해 repository, worktree, branch bucket을 자동 선택한다.
+
+```text
+ctx/
+  repos/<repository-name>-<key>/
+    worktrees/<worktree-name>-<key>/
+      branches/<branch-name>-<key>/
+        scope.json
+        active.json
+        checkpoints/<checkpoint-id>.json
+```
+
+예를 들어 `feature/login` branch는 다음과 같이 안전한 이름과 짧은 해시를 함께
+사용한다.
+
+```text
+repos/ai-kit-a0764528/
+  worktrees/ai-kit-a0764528/
+    branches/feature-login-7d3a41b2/
+```
+
+- repository key는 Git common directory에서 만든다. 연결된 worktree들이 같은
+  repository 아래 모인다.
+- worktree key는 worktree 루트 절대 경로에서 만든다.
+- branch key는 branch 이름에서 만든다. detached HEAD는 commit별 bucket을 쓴다.
+- `scope.json`에는 원본 common directory, worktree 경로와 branch 이름을 기록한다.
+- `active.json`과 체크포인트는 해당 branch bucket 안에만 존재한다.
+
+브랜치를 전환하면 그 브랜치의 최신 컨텍스트가 자동 선택되고, 새 worktree에서
+실행하면 그 worktree 전용 컨텍스트가 선택된다. 체크포인트 ID에는 Git 정보를
+넣지 않는다.
 
 ## 설치
 
-Go 1.26 이상이 준비된 macOS 또는 Unix 환경에서 다음 명령을 실행한다.
+Go 1.26 이상에서 다음을 실행한다.
 
 ```bash
 ./scripts/install.sh
 ```
 
-스크립트는 `ctx` CLI와 다섯 Agent Skills를 함께 설치한다.
-
-| 대상 | 기본 설치 위치 |
-|---|---|
-| CLI | `~/.local/bin/ctx` |
-| 공유 스킬 정본 | `~/.local/share/ctx/skills/ctx-*` |
-| Claude Code 진입점 | `~/.claude/skills/ctx-*` |
-| Codex 진입점 | `~/.agents/skills/ctx-*` |
-
-두 제품의 진입점은 같은 공유 스킬 정본을 가리킨다. 설치기가 관리하지 않는
-동명 파일이나 디렉터리는 덮어쓰지 않는다. 다른 위치나 명시적 버전이 필요하면
-`./scripts/install.sh --help`에 나오는 경로 옵션과 `--version`을 사용한다.
-CLI 위치가 `PATH`에 없으면 스크립트가 `PATH` 또는 `CTX_BIN` 설정 방법을
-출력한다. macOS GUI 앱은 이미 실행 중인 프로세스의 환경을 바꿀 수 없으므로
-Codex와 Claude Code의 실행 환경에 해당 설정을 적용한 뒤 앱을 완전히
+기본 설치 위치는 `~/.local/bin/ctx`다. 네 Agent Skill의 공유 사본은
+`~/.local/share/ctx/skills`에 설치되고 Claude Code와 Codex가 같은 사본을
+가리킨다. 설치 후 CLI가 PATH에 없다면 다음 환경 변수를 설정하고 앱을 완전히
 재시작한다.
 
-## 제품 경계
-
-```mermaid
-flowchart LR
-    U["사용자"] --> A["Claude Code 또는 Codex"]
-    A --> S["공통 ctx Agent Skills"]
-    S --> CLI["ctx CLI"]
-    CLI --> STORE["파일 기반 사이드카<br/>JSON·YAML·Markdown"]
-    CLI -. "관측·비교" .-> GIT["기존 Git 작업 사본"]
-    STORE <--> SYNC["선택적 ctx 동기화"]
-```
-
-- **코드의 정본은 Git이다.** ctx는 브랜치를 바꾸거나 패치를 적용하거나 코드를 병합·전송하지 않는다.
-- **작업 컨텍스트의 정본은 체크포인트 JSON이다.** 원본 대화나 런타임 스냅숏 없이도 재개할 수 있어야 한다.
-- **핸드오프는 안정 체크포인트를 가리키는 얇은 포인터다.** 의미 정보를 중복 저장하지 않는다.
-- **개인 컨텍스트는 팀 저장소 밖에 둔다.** 기본 저장 위치는 로컬 사이드카이며 원격 동기화는 선택 사항이다.
-- **체크포인트는 추가 전용이다.** 동시 작업으로 여러 헤드가 생기면 모두 보존하고 사용자가 선택하거나 통합한다.
-
-구체적인 사용자 흐름은 [ctx 사용자 시나리오](docs/user-scenarios.md)에 정리되어 있다.
-
-## 시나리오와 구현 진입점
-
-| 사용자 시나리오 | 진입 스킬 | 사용하는 CLI 기능 |
-|---|---|---|
-| 새 작업 시작과 중간 저장 | `ctx-start`, `ctx-checkpoint` | 작업 생성·바인딩, 저장소 해석, Git 관측, 체크포인트 생성 |
-| 같은 Mac에서 앱 전환 | `ctx-handoff`, `ctx-resume` | 안정 핸드오프 생성, 체크포인트 선택, Git 기준점 비교, 재개 렌더링 |
-| 다른 Mac으로 전환 | `ctx-handoff`, `ctx-resume` | 체크포인트 동기화, 동기화 실패 표시, 장치별 작업 사본 매핑 |
-| Git 상태가 다른 곳에서 재개 | `ctx-resume`, `ctx-status` | 브랜치·HEAD·작업 트리 차이 계산과 비파괴적 보고 |
-| 두 장치나 에이전트의 동시 작업 | `ctx-resume`, `ctx-checkpoint` | 여러 헤드 감지·선택, 다중 부모 merge 체크포인트 |
-| 비정상 종료 뒤 복구 | `ctx-resume`, `ctx-status` | 사전에 생성된 런타임 스냅숏, 현재 Git 재관측, 마지막 안정 체크포인트와 비교 |
-
-## Agent Skills
-
-Claude Code와 Codex가 모두 Agent Skills 형식을 사용하므로 다섯 스킬은 하나의 정본을 공유한다. 저장소의 원본은 `.claude/skills/`에 있고 `.agents/skills/`의 프로젝트 스킬은 같은 디렉터리를 가리킨다. 설치 후에는 두 제품의 사용자 스킬 진입점이 `~/.local/share/ctx/skills/`의 설치 사본을 함께 가리킨다. Claude Code에서는 `/ctx-*`, Codex에서는 `$ctx-*`로 호출한다.
-
-| 공통 의도 | Claude Code | Codex | 책임 |
-|---|---|---|---|
-| 새 작업 시작 | `/ctx-start` | `$ctx-start` | 현재 저장소를 해석하고 작업을 생성해 현재 앱에 바인딩한다. |
-| 작업 재개 | `/ctx-resume` | `$ctx-resume` | 작업과 안정 헤드를 선택하고 전체 재개 결과를 현재 에이전트 컨텍스트에 넣는다. |
-| 체크포인트 저장 | `/ctx-checkpoint` | `$ctx-checkpoint` | 대화에서 의미 상태를 캡처하고 기계 상태와 합쳐 새 체크포인트를 만든다. |
-| 핸드오프 | `/ctx-handoff` | `$ctx-handoff` | 완전한 안정 체크포인트와 대상 앱을 가리키는 핸드오프를 원자적으로 만든다. |
-| 상태 확인 | `/ctx-status` | `$ctx-status` | 활성 작업, 체크포인트 헤드, Git 차이, 동기화 상태를 설명한다. |
-
-바이너리 탐색, 최소 버전, 제품별 client ID, 캡처 경계, 종료 코드와 동기화 실패 처리는 [ctx 스킬 행동 계약](docs/skill-behavior-contract.md)을 따른다. 스킬은 `CTX_BIN`을 우선하고 없으면 `PATH`의 `ctx`를 사용하며, release `0.1.0` 이상 또는 소스 빌드 `ctx dev`를 요구한다.
-
-별도의 `ctx-sync`, `ctx-snapshot`, `ctx-merge` 사용자 스킬은 MVP에 만들지 않는다.
-
-- 동기화는 `handoff`와 `resume`이 필요할 때 호출한다.
-- 런타임 스냅숏은 `ctx snapshot`으로 명시적으로 생성한다. 현재 다섯 Agent Skills는 이 명령을 자동 호출하지 않으며, 앱 수명 주기 훅 연결은 실제 제품 종단 간 검증 범위에 남아 있다.
-- 여러 헤드 선택은 `resume`, 통합 결과 저장은 `checkpoint`가 담당한다.
-
-### 모든 스킬이 지켜야 할 계약
-
-1. **CLI가 식별자를 결정한다.** 스킬은 경로나 원격 URL에서 `repo_id`, `task_id`, 부모 ID를 추측하지 않는다.
-2. **캡처 전에 `ctx resolve`를 호출한다.** 관련 자료와 검증 항목에는 반환된 `repo_id`만 사용한다.
-3. **스킬은 의미 정보만 전달한다.** 캡처 입력의 최상위 필드는 `input_version`, `work_status`, `capture`, `context` 네 개다.
-4. **CLI가 기계 정보를 추가한다.** 생성 시각, 작업·체크포인트 ID, 부모, 세션, Git 기준점, 작업 트리 지문과 해시는 CLI 책임이다.
-5. **재개 결과 전체를 주입한다.** `resume`은 파일 경로 목록만 반환하지 않고 목표, 결정, 진행 상황, 다음 행동, 검증, 관련 자료와 Git 차이를 제한된 Markdown으로 반환한다.
-6. **모호성을 숨기지 않는다.** 작업이나 체크포인트 헤드 후보가 여러 개면 임의로 고르지 않고 사용자 선택을 받는다.
-7. **Git을 변경하지 않는다.** 스킬과 CLI 모두 자동 checkout, patch 적용, merge를 수행하지 않는다.
-8. **핸드오프는 안정 헤드를 하나로 만든다.** 안정 헤드가 여러 개면 한쪽만 선택하지 않고, 사용자가 승인한 컨텍스트 merge 체크포인트를 먼저 만든다.
-
-## CLI 명령과 기능
-
-### 명령 목록
-
-| 명령 | 동작 |
-|---|---|
-| `ctx task create` | ULID 작업을 만들고 현재 저장소·앱에 활성 작업으로 바인딩한다. |
-| `ctx task list` | 현재 저장소의 작업과 안정 헤드, 상태, 최근 사용 정보를 조회한다. |
-| `ctx task switch` | 명시한 작업을 현재 앱의 활성 작업으로 바인딩한다. |
-| `ctx repo link --from <local-repo-id>` | 원격이 없던 저장소의 로컬 ID를 현재 Git 원격 기반 ID에 명시적으로 연결하고 기존 작업 전체를 옮긴다. |
-| `ctx resolve` | 현재 경로에서 `repo_id`, 작업 사본, 활성 작업, 앱 바인딩을 결정한다. |
-| `ctx checkpoint` | 캡처 입력과 현재 기계 상태를 검증·결합해 추가 전용 체크포인트를 만든다. |
-| `ctx checkpoint --purpose merge --parent ...` | 선택한 여러 헤드를 부모로 갖는 컨텍스트 통합 체크포인트를 만든다. |
-| `ctx handoff` | 완전한 캡처만 받아 안정 체크포인트와 얇은 핸드오프를 한 트랜잭션에서 만든다. |
-| `ctx resume` | 필요하면 먼저 동기화하고, 작업·헤드를 선택해 Git 차이가 포함된 재개 컨텍스트를 렌더링한다. |
-| `ctx status` | 활성 작업, 체크포인트 그래프, 현재 Git 상태, 마지막 스냅숏과 동기화 상태를 조회한다. |
-| `ctx snapshot` | Git과 세션의 기계적 관측값만 런타임 스냅숏으로 저장한다. |
-| `ctx sync` | 추가 전용 레코드를 교환하고 여러 헤드를 보존한다. 마지막 쓰기 우선으로 체크포인트를 버리지 않는다. |
-
-### CLI 공통 기능
-
-- **저장소 식별:** 기준 Git 원격을 정규화한 `repo_id`와 장치별 로컬 경로를 연결한다. 원격이 없으면 로컬 ID를 발급하고, 원격 추가 뒤 `ctx repo link --from <local-repo-id>`로 기존 작업을 휴대 가능한 ID에 명시적으로 연결한다.
-- **작업 바인딩:** 작업 ID를 브랜치명, 작업 트리 경로, 세션 ID와 분리하고 저장소·앱별 활성 작업을 관리한다. 세션 ID는 체크포인트와 런타임 스냅숏의 세션 참조에 기록한다.
-- **Git 관측:** HEAD, 브랜치, 진행 중인 Git 작업, staged·unstaged·untracked·충돌 상태를 안정적으로 수집한다.
-- **상태 비교:** 체크포인트의 Git 기준점과 현재 작업 사본의 차이를 사람이 이해할 수 있게 요약한다.
-- **체크포인트 그래프:** 부모 관계, 여러 헤드, merge 체크포인트와 순환 금지 불변식을 관리한다.
-- **검증과 해시:** JSON Schema와 의미 불변식을 검사하고 JCS 기반 콘텐츠 해시와 작업 트리 지문을 계산한다.
-- **원자성과 멱등성:** 저장소·작업 단위 잠금, 원자적 파일 교체, 중복 판정으로 재시도 시 같은 레코드를 중복 생성하지 않는다.
-- **재개 렌더링:** 출력 예산 안에서 자체 완결형 Markdown 또는 버전이 있는 JSON을 만든다.
-- **동기화:** 실패를 숨기지 않고 로컬 상태 사용 여부를 표시하며, 체크포인트에서 유도되는 상태 필드와 핸드오프 포인터를 검증·재구축한다.
-- **안정적인 프로세스 계약:** 비대화형 실행을 기본으로 하고 `stdout`에는 요청 데이터만, `stderr`에는 진단만 출력하며 실패 종류별 종료 코드를 사용한다.
-
-## 데이터 계약
-
-| 레코드 | 역할 | 보존 정책 |
-|---|---|---|
-| 캡처 입력 | 스킬이 CLI에 전달하는 임시 의미 정보 | 저장하지 않음 |
-| 런타임 스냅숏 | 단일 장치·작업 사본의 Git 및 세션 관측값 | 로컬 장치 보조 상태, 현재 동기화 대상 아님 |
-| 체크포인트 | 에이전트가 독립적으로 재개할 수 있는 전체 의미 상태와 Git 기준점 | 추가 전용 정본 |
-| 핸드오프 | 안정 체크포인트를 가리키는 ID·해시·대상 정보 | 체크포인트에서 검증·재생성 가능 |
-
-중요한 규칙은 다음과 같다.
-
-- 일반 체크포인트는 부모가 최대 하나이고 `purpose: merge`만 부모를 둘 이상 가진다.
-- 완전한 캡처는 `stable`, 일부가 생략된 캡처는 `draft`다.
-- `handoff`는 `complete`·`stable` 체크포인트만 만들 수 있다.
-- 체크포인트는 부모나 원본 로그를 읽지 않아도 이해할 수 있는 전체 상태다.
-- 런타임 스냅숏과 세션 로그는 보조 자료이며 의미 컨텍스트를 대신하지 않는다.
-
-정확한 필드와 불변식은 다음 문서가 정본이다.
-
-- [ctx v1 스키마](schemas/v1/README.md)
-- [캡처 입력 스키마](schemas/v1/capture-input.schema.json)
-- [체크포인트 스키마](schemas/v1/checkpoint.schema.json)
-- [런타임 스냅숏 스키마](schemas/v1/runtime-snapshot.schema.json)
-- [handoff Markdown v1](schemas/v1/handoff-rendering.md)
-- [Git 작업 트리 지문 v1](schemas/v1/worktree-fingerprint.md)
-
-## 저장과 동기화
-
-MVP의 사이드카 저장소는 별도 데이터베이스나 상시 실행 서버가 아니라 **일반 파일과 디렉터리**다. 개발 저장소의 `.git` 바깥에 두고, 임시 파일을 같은 디렉터리에 쓴 뒤 원자적으로 이름을 바꾸는 방식과 저장소 식별 전환·작업 단위 잠금으로 일관성을 지킨다.
-
-macOS의 기본 구조는 다음과 같다.
-
-```text
-~/Library/Application Support/ctx/
-  config.yaml
-  locks/
-    repositories/
-      <repository-lock-key>.lock
-  repos/
-    <repo-id>/
-      repo.yaml
-      tasks/
-        <task-id>/
-          manifest.yaml
-          handoff.md
-          checkpoints/
-            <checkpoint-id>.json
-          runtime/
-            snapshots/
-              <snapshot-id>.json
-            bindings/
-```
-
-| 경로 | 역할 |
-|---|---|
-| `config.yaml` | 향후 설정을 위한 예약 경로. 현재 CLI는 이 파일을 읽거나 쓰지 않는다. |
-| `locks/repositories/*.lock` | 안정적인 로컬 저장소 ID와 raw 휴대형 저장소 ID를 정렬된 순서로 함께 잠그는 재생성 가능한 내부 잠금. 일반 작업은 공유 잠금을 사용하고, `task create`의 selector 검증·발행과 `repo link`의 ID 전환은 배타 잠금을 사용한다. 컨텍스트 정본이나 동기화 대상이 아니다. |
-| `<remote>/locks/repositories/<repo-id>.lock` | 같은 파일 원격을 공유하는 producer의 sync 잠금. `push`·`both`는 배타, `pull`은 공유 잠금을 사용하며 재생성 가능하고 동기화되지 않는 비정본 파일이다. |
-| `repo.yaml` | 저장소 식별 정보와 이 장치에서 알려진 작업 디렉터리 매핑 |
-| `manifest.yaml` | 작업 제목·상태·별칭·체크포인트 헤드를 빠르게 찾기 위한 메타데이터 |
-| `handoff.md` | 현재 안정 체크포인트를 가리키는 사람이 읽을 수 있는 얇은 포인터 |
-| `checkpoints/*.json` | 덮어쓰지 않는 자체 완결형 작업 컨텍스트의 정본 |
-| `runtime/snapshots/*.json` | Git과 세션에서 자동 수집한 장치별 기계 상태 |
-| `runtime/bindings/` | 앱과 활성 작업을 연결하는 재생성 가능한 로컬 바인딩 |
-
-체크포인트 JSON이 의미 컨텍스트의 정본이다. `manifest.yaml`의 헤드·상태 같은 파생 필드는 체크포인트에서 재구축하지만, 제목·별칭 같은 작업 식별 정보는 매니페스트 자체로 보존하고 동기화한다. 매니페스트가 없고 유효한 체크포인트 그래프만 남은 경우에는 최소 작업 ID와 표시용 제목·상태를 임시 복구할 수 있지만 별칭까지 복원할 수는 없다. 이 복구 매니페스트에는 `identity_recovered: true`가 기록되며, 이후 원래 매니페스트가 다시 동기화되면 제목·별칭·생성 시각을 복원한다. `handoff.md`는 체크포인트에서 검증·재생성하며, 런타임 스냅숏과 바인딩, 잠금 파일은 장치별 보조 상태다. 구현을 위해 SQLite, 외부 데이터베이스, 데몬이나 별도 GUI를 전제로 하지 않는다.
-
-장치 간 전환에서는 두 경로가 독립적으로 동작한다.
-
-1. 코드는 사용자가 기존 Git 원격으로 동기화한다.
-2. ctx는 `--remote`로 지정한 파일 저장소로 체크포인트와 최소 작업 메타데이터를 동기화한다.
-3. `resume`은 원격 ctx 변경을 먼저 가져오고 현재 Git 작업 사본과 기준점을 비교한다.
-
-동기화 역시 데이터베이스 복제를 뜻하지 않는다. 추가 전용 체크포인트 파일의 합집합과 `manifest.yaml`의 작업 식별 정보를 보존하고, 매니페스트의 파생 상태 필드와 `handoff.md`는 체크포인트를 기준으로 검증·재구축한다.
-
-## 구현 상태
-
-1~6단계는 구현되어 있다. 남은 단계는 실제 Codex와 Claude Code 사이에서 아래 여섯 사용자 흐름을 종단 간 검증하는 일이다.
-
-1. 스키마 로더, 의미 검증기, JCS 해시와 로컬 추가 전용 저장소
-2. Git 저장소 식별, 작업 사본 매핑, 작업 트리 관측과 런타임 스냅숏
-3. 작업 수명 주기, 앱 바인딩, 체크포인트 그래프와 중복 제거
-4. `resume`, `status`, Git 차이 계산과 컨텍스트 예산 렌더링
-5. 안정 핸드오프 렌더링, 파일 기반 동기화와 여러 헤드 처리
-6. 공통 스킬 행동 계약과 Claude Code·Codex용 다섯 스킬
-7. [여섯 사용자 시나리오](docs/user-scenarios.md)의 종단 간 검증
-
-## 검증
-
-스키마 원본과 예제는 다음 명령으로 교차 검증한다.
-
 ```bash
-uv run --with jsonschema --with rfc8785 python scripts/validate-schemas.py
+export CTX_BIN="$HOME/.local/bin/ctx"
 ```
 
-Go CLI는 다음 명령으로 검증한다.
+## 개발 검증
 
 ```bash
 cd cli
@@ -228,16 +147,6 @@ go vet ./...
 go build -trimpath -o bin/ctx ./cmd/ctx
 ```
 
-설치기는 임시 홈에서 안전한 최초 설치·갱신·충돌 거부를 검증한다.
-
 ```bash
 ./scripts/install_test.sh
 ```
-
-CLI 통합 테스트는 다음 사용자 흐름의 CLI·파일 저장소 계층을 자동화한다. 실제 Codex와 Claude Code 제품 사이의 종단 간 검증은 아직 수행 전이다.
-
-- 같은 Mac에서 핸드오프 후 다른 앱이 두 번 이내의 명시적 행동으로 작업을 계속한다.
-- 다른 Mac에서 Git과 ctx가 각각 동기화된 경우 같은 작업을 재개한다.
-- Git 불일치, 동기화 실패와 여러 헤드를 조용히 무시하지 않는다.
-- 비정상 종료 뒤 마지막 안정 체크포인트와 현재 Git 상태를 함께 제시한다.
-- 어떤 재개 경로도 Git 작업 사본을 자동 변경하지 않는다.

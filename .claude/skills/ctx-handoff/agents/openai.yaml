@@ -1,4 +1,0 @@
-interface:
-  display_name: "ctx Handoff"
-  short_description: "Create a stable ctx handoff for another agent"
-  default_prompt: "Use $ctx-handoff to prepare this work for another coding agent."

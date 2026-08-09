@@ -1,51 +1,13 @@
 # ctx CLI
 
-Go implementation of the shared `ctx` command-line core.
-
-## Development
-
-Requires Go 1.26 or newer.
+같은 컴퓨터의 Claude Code와 Codex가 현재 Git repository·worktree·branch의
+최신 작업 컨텍스트를 공유하기 위한 작은 Go CLI다. 외부 Go 의존성, JSON
+Schema, 동기화, 다중 head를 사용하지 않는다.
 
 ```bash
 go test ./...
-go test -race ./...
-go vet ./...
 go run ./cmd/ctx --help
-go build -trimpath -o bin/ctx ./cmd/ctx
 ```
 
-The CLI implements `task create/list/switch`, `repo link --from <local-repo-id>`,
-`resolve`, `checkpoint`, `handoff`, `resume`, `status`, `snapshot`, and filesystem `sync`. Use
-`ctx <command> --help` for command-specific input and selection rules.
-
-Release builds can replace the default `dev` version through `-ldflags`.
-
-```bash
-go build -trimpath -ldflags "-X main.version=0.1.0" -o bin/ctx ./cmd/ctx
-```
-
-## Install from the checkout
-
-From the repository root, install the CLI and the five shared Agent Skills:
-
-```bash
-./scripts/install.sh
-```
-
-The default CLI target is `~/.local/bin/ctx`. Canonical skill copies are installed
-under `~/.local/share/ctx/skills`, with user-level links in `~/.claude/skills` and
-`~/.agents/skills` so Claude Code and Codex use the same instructions. The
-installer uses an exact stable SemVer Git tag only from a clean checkout and
-otherwise builds `ctx dev`. Both forms are accepted by the Agent Skills. Override
-the destination or version when needed:
-
-```bash
-./scripts/install.sh --bin-dir /usr/local/bin --version 0.1.0
-```
-
-Use `./scripts/install.sh --help` for the three skill-directory overrides. The
-script does not invoke `sudo`, edit shell profiles, replace an unrelated file named
-`ctx`, or overwrite same-named skills it does not manage. When the destination is
-not on `PATH`, it prints the corresponding `PATH` and `CTX_BIN` settings. Apply
-that setting to the launch environment and fully restart already-running macOS GUI
-apps.
+명령은 `start`, `checkpoint`, `resume`, `status` 네 개다. 모든 명령에
+`--cwd`, `--store`, `--client`, `--json` 전역 옵션을 사용할 수 있다.

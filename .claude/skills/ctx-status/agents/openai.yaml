@@ -1,4 +1,0 @@
-interface:
-  display_name: "ctx Status"
-  short_description: "Inspect ctx task, Git, and sync state"
-  default_prompt: "Use $ctx-status to explain the current ctx task and repository state."

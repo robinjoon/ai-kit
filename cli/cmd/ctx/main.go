@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/robinjoon/ai-kit/cli/internal/command"
@@ -10,9 +9,5 @@ import (
 var version = "dev"
 
 func main() {
-	root := command.NewRoot(version)
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(command.ExitCode(err))
-	}
+	os.Exit(command.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr, version))
 }

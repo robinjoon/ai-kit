@@ -1,4 +1,0 @@
-interface:
-  display_name: "ctx Checkpoint"
-  short_description: "Capture a durable semantic ctx checkpoint"
-  default_prompt: "Use $ctx-checkpoint to save the current work as a durable ctx checkpoint."
