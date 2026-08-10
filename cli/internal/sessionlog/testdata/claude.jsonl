@@ -1,0 +1,10 @@
+{"type":"user","cwd":"/repo/project","timestamp":"2026-08-10T00:59:00Z","message":{"role":"user","content":"old request"}}
+{"type":"user","cwd":"/repo/project","timestamp":"2026-08-10T01:01:00Z","message":{"role":"user","content":[{"type":"text","text":"implement log collection"}]}}
+{"type":"assistant","cwd":"/repo/project","timestamp":"2026-08-10T01:02:00Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"","signature":"redacted"}]}}
+{"type":"assistant","cwd":"/repo/project","timestamp":"2026-08-10T01:03:00Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"compare the two log formats","signature":"summary"}]}}
+{"type":"assistant","cwd":"/repo/project","timestamp":"2026-08-10T01:04:00Z","message":{"role":"assistant","content":[{"type":"text","text":"I found both log formats."}]}}
+{"type":"assistant","cwd":"/repo/project","timestamp":"2026-08-10T01:05:00Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-1","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"user","cwd":"/repo/project","timestamp":"2026-08-10T01:06:00Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-1","content":"all tests passed"}]}}
+{"type":"assistant","cwd":"/repo/project/subdir","timestamp":"2026-08-10T01:07:00Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-2","name":"Edit","input":{"file_path":"main.go","old_string":"old","new_string":"new"}}]}}
+{"type":"user","cwd":"/repo/project/subdir","timestamp":"2026-08-10T01:08:00Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-2","content":"updated main.go"}]}}
+{"type":"user","cwd":"/repo/other","timestamp":"2026-08-10T01:09:00Z","message":{"role":"user","content":"unrelated request"}}

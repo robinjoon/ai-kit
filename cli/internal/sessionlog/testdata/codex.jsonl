@@ -1,0 +1,11 @@
+{"timestamp":"2026-08-10T01:00:00Z","type":"session_meta","payload":{"id":"session-1","cwd":"/repo/project","originator":"Codex Desktop"}}
+{"timestamp":"2026-08-10T01:01:30Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"collect the Codex log"}]}}
+{"timestamp":"2026-08-10T01:02:30Z","type":"response_item","payload":{"type":"reasoning","summary":[{"type":"summary_text","text":"inspect the session metadata"}],"encrypted_content":"opaque"}}
+{"timestamp":"2026-08-10T01:03:30Z","type":"response_item","payload":{"type":"reasoning","summary":[],"encrypted_content":"opaque-only"}}
+{"timestamp":"2026-08-10T01:04:30Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"The session has a matching cwd."}]}}
+{"timestamp":"2026-08-10T01:05:30Z","type":"response_item","payload":{"type":"custom_tool_call","call_id":"call-1","name":"exec","input":"go test ./..."}}
+{"timestamp":"2026-08-10T01:06:30Z","type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"call-1","output":"tests passed"}}
+{"timestamp":"2026-08-10T01:07:30Z","type":"event_msg","payload":{"type":"patch_apply_end","status":"completed","changes":{"main.go":{"type":"update","content":"package main"}}}}
+{"timestamp":"2026-08-10T01:08:30Z","type":"event_msg","payload":{"type":"agent_message","message":"duplicate assistant event"}}
+{"timestamp":"2026-08-10T01:09:30Z","type":"response_item","payload":{"type":"function_call","call_id":"call-2","name":"read_file","arguments":"{\"path\":\"README.md\"}"}}
+{"timestamp":"2026-08-10T01:10:30Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-2","output":"project documentation"}}
