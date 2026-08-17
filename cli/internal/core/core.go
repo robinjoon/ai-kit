@@ -18,12 +18,18 @@ const DataVersion = 1
 
 var ErrNoActiveContext = errors.New("no active ctx context; run ctx start first")
 
+// Decision records what was decided and the reasoning behind it.
+type Decision struct {
+	What string `json:"what"`
+	Why  string `json:"why"`
+}
+
 type CheckpointInput struct {
-	Goal        string   `json:"goal"`
-	Summary     string   `json:"summary"`
-	Decisions   []string `json:"decisions,omitempty"`
-	NextActions []string `json:"next_actions,omitempty"`
-	Blockers    []string `json:"blockers,omitempty"`
+	Goal        string     `json:"goal"`
+	Summary     string     `json:"summary"`
+	Decisions   []Decision `json:"decisions,omitempty"`
+	NextActions []string   `json:"next_actions,omitempty"`
+	Blockers    []string   `json:"blockers,omitempty"`
 }
 
 type GitState struct {
@@ -204,10 +210,22 @@ func (s *Service) state(cwd string) (State, error) {
 func cleanInput(input CheckpointInput) CheckpointInput {
 	input.Goal = strings.TrimSpace(input.Goal)
 	input.Summary = strings.TrimSpace(input.Summary)
-	input.Decisions = cleanList(input.Decisions)
+	input.Decisions = cleanDecisions(input.Decisions)
 	input.NextActions = cleanList(input.NextActions)
 	input.Blockers = cleanList(input.Blockers)
 	return input
+}
+
+func cleanDecisions(decisions []Decision) []Decision {
+	result := make([]Decision, 0, len(decisions))
+	for _, d := range decisions {
+		d.What = strings.TrimSpace(d.What)
+		d.Why = strings.TrimSpace(d.Why)
+		if d.What != "" {
+			result = append(result, d)
+		}
+	}
+	return result
 }
 
 func cleanList(values []string) []string {

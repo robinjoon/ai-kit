@@ -21,7 +21,14 @@ func TestCLIStartCheckpointResume(t *testing.T) {
 	assertCommand(t, out.Bytes(), "start")
 
 	inputPath := filepath.Join(t.TempDir(), "checkpoint.json")
-	input := []byte(`{"goal":"CLI flow","summary":"Core is small.","decisions":["Keep the input minimal"],"next_actions":["Test resume"]}`)
+	input := []byte(`{
+		"goal": "CLI flow",
+		"summary": "Core is small.",
+		"decisions": [
+			{"what": "Keep the input minimal", "why": "Less surface area to maintain"}
+		],
+		"next_actions": ["Test resume"]
+	}`)
 	if err := os.WriteFile(inputPath, input, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +61,24 @@ func TestCLIRejectsRemovedCheckpointField(t *testing.T) {
 	code := Run([]string{"--cwd", repository, "--store", store, "checkpoint", "--input", "-"}, bytes.NewBufferString(`{"goal":"x","summary":"y","tests":[]}`), &out, &diagnostics, "dev")
 	if code != 1 {
 		t.Fatalf("checkpoint exit = %d, want 1", code)
+	}
+}
+
+func TestCLIRejectsDecisionWithUnknownField(t *testing.T) {
+	repository := commandTestRepository(t)
+	store := t.TempDir()
+	var out, diagnostics bytes.Buffer
+	if code := Run([]string{"--cwd", repository, "--store", store, "start", "--title", "Strict decisions"}, bytes.NewReader(nil), &out, &diagnostics, "dev"); code != 0 {
+		t.Fatalf("start exit = %d, stderr = %s", code, diagnostics.String())
+	}
+	out.Reset()
+	diagnostics.Reset()
+	// decisions elements are decoded as plain JSON; unknown top-level fields are rejected
+	code := Run([]string{"--cwd", repository, "--store", store, "checkpoint", "--input", "-"},
+		bytes.NewBufferString(`{"goal":"x","summary":"y","decisions":[{"what":"ok","why":"ok","extra":"bad"}]}`),
+		&out, &diagnostics, "dev")
+	if code != 1 {
+		t.Fatalf("checkpoint exit = %d, want 1 (unknown field in decision)", code)
 	}
 }
 

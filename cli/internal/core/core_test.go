@@ -22,8 +22,12 @@ func TestStartCheckpointAndResume(t *testing.T) {
 	}
 
 	saved, err := service.Checkpoint(repository, "progress", CheckpointInput{
-		Goal: "Simplify ctx", Summary: "Removed distributed features.",
-		Decisions: []string{"Keep one active context"}, NextActions: []string{"Run tests"},
+		Goal:    "Simplify ctx",
+		Summary: "Removed distributed features.",
+		Decisions: []Decision{
+			{What: "Keep one active context", Why: "Simpler mental model; no merging needed"},
+		},
+		NextActions: []string{"Run tests"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -35,8 +39,43 @@ func TestStartCheckpointAndResume(t *testing.T) {
 	if state.Latest.ID != saved.ID || state.Latest.Context.Summary != "Removed distributed features." {
 		t.Fatalf("unexpected latest checkpoint: %#v", state.Latest)
 	}
+	if len(state.Latest.Context.Decisions) != 1 {
+		t.Fatalf("expected 1 decision, got %d", len(state.Latest.Context.Decisions))
+	}
+	if state.Latest.Context.Decisions[0].What != "Keep one active context" {
+		t.Fatalf("decision.what = %q", state.Latest.Context.Decisions[0].What)
+	}
+	if state.Latest.Context.Decisions[0].Why != "Simpler mental model; no merging needed" {
+		t.Fatalf("decision.why = %q", state.Latest.Context.Decisions[0].Why)
+	}
 	if len(state.Differences) != 0 {
 		t.Fatalf("unexpected Git differences: %v", state.Differences)
+	}
+}
+
+func TestDecisionWithEmptyWhatIsDropped(t *testing.T) {
+	repository := testRepository(t)
+	service, err := New(t.TempDir(), "ctx.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Start(repository, "Clean decisions"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := service.Checkpoint(repository, "progress", CheckpointInput{
+		Goal:    "Clean decisions",
+		Summary: "Testing decision cleaning.",
+		Decisions: []Decision{
+			{What: "  ", Why: "some reason"},   // empty what — should be dropped
+			{What: "Keep it simple", Why: ""},  // empty why — kept
+			{What: "Use JSON", Why: "portable"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Context.Decisions) != 2 {
+		t.Fatalf("expected 2 decisions after cleaning, got %d: %+v", len(saved.Context.Decisions), saved.Context.Decisions)
 	}
 }
 

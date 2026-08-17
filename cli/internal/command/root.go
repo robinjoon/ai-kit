@@ -199,12 +199,26 @@ func renderResume(out io.Writer, state core.State) {
 	fmt.Fprintf(out, "# Resume: %s\n\n", state.Active.Title)
 	fmt.Fprintf(out, "Worktree: `%s`\nBranch: `%s`\nCheckpoint: `%s`\nSaved by: `%s`\n\n", state.Scope.WorktreeRoot, state.Scope.Branch, state.Latest.ID, state.Latest.Client)
 	fmt.Fprintf(out, "## Goal\n%s\n\n## Current summary\n%s\n", ctx.Goal, ctx.Summary)
-	writeSection(out, "Decisions", ctx.Decisions)
+	writeDecisionsSection(out, ctx.Decisions)
 	writeSection(out, "Next actions", ctx.NextActions)
 	writeSection(out, "Blockers", ctx.Blockers)
 	if len(state.Differences) > 0 {
 		fmt.Fprintln(out, "\n## Git differences")
 		writeList(out, state.Differences)
+	}
+}
+
+func writeDecisionsSection(out io.Writer, decisions []core.Decision) {
+	if len(decisions) == 0 {
+		return
+	}
+	fmt.Fprintln(out, "\n## Decisions")
+	for _, d := range decisions {
+		if d.Why != "" {
+			fmt.Fprintf(out, "- %s\n  - Why: %s\n", d.What, d.Why)
+		} else {
+			fmt.Fprintf(out, "- %s\n", d.What)
+		}
 	}
 }
 

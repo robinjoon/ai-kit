@@ -14,6 +14,7 @@ description: Inspect the single active local ctx context, latest checkpoint, and
 
    Add `--store <CTX_STORE>` only when set.
 3. Report the selected worktree and branch, title, context ID, latest checkpoint
-   ID and time, summary, next actions, blockers, and Git differences.
+   ID and time, summary, decisions (what + why), next actions, blockers, and Git
+   differences.
 
 This skill is read-only. Do not start, checkpoint, install, sync, or change Git.

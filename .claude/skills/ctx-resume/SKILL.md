@@ -15,8 +15,14 @@ description: Resume the latest local ctx checkpoint when the user asks to contin
    ```
 
    Add `--store <CTX_STORE>` only when set.
-3. Read the latest checkpoint's goal, summary, decisions, next actions, blockers,
-   and Git differences into the current agent context.
+3. Read each field with its intended purpose in mind:
+   - `goal` — the objective; orient yourself before reading anything else.
+   - `summary` — current state; understand where things stand right now.
+   - `decisions` — why this direction was chosen; read `why` so you can continue
+     the same direction without reopening settled questions.
+   - `next_actions` — start on the first item immediately when the user asked for
+     execution.
+   - `blockers` — external blockers; surface these to the user before proceeding.
 4. Show Git differences before continuing. Never change Git automatically.
 5. Continue from the next actions when the user asked for execution, or summarize
    them when the user asked only to inspect the state.
